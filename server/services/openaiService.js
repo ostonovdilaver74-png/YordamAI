@@ -8,16 +8,22 @@ const openai = new OpenAI({
 
 async function generateAIReply(messages = []) {
   if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY server .env faylida topilmadi");
+    throw new Error(
+        "OPENAI_API_KEY server .env faylida topilmadi"
+    );
   }
 
-  const conversationInput = messages.map((message) => ({
-    role: message.role === "assistant" ? "assistant" : "user",
+  const conversationInput = messages.map(
+    (message) => ({
+    role: message.role === "assistant" 
+    ? "assistant" 
+    : "user",
     content: message.content,
   }));
 
   const response = await openai.responses.create({
-    model: process.env.OPENAI_MODEL || "gpt-5.5",
+    model: 
+      process.env.OPENAI_MODEL || "gpt-5.5",
 
     instructions: `
 Sen YordamAI nomli foydali AI yordamchisan.
