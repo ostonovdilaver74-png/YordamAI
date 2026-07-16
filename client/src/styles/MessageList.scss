@@ -1,10 +1,119 @@
 .message-list {
   flex: 1;
   width: 100%;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 24px;
   overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+
+  display: flex;
+  justify-content: center;
+
+  padding: 24px 0;
+
+  background: #f8fafc;
+
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.message-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.message-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.message-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.message-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}
+
+.message-list__inner {
+  width: 100%;
+  max-width: 920px;
+
   display: flex;
   flex-direction: column;
+  gap: 18px;
+
+  padding: 0 24px;
+}
+
+.message-list__item {
+  display: flex;
+  width: 100%;
+
+  animation: messageFadeIn .22s ease;
+}
+
+.message-list__item--user {
+  justify-content: flex-end;
+}
+
+.message-list__item--assistant {
+  justify-content: flex-start;
+}
+
+/*
+   Ketma-ket kelgan xabarlarni
+   ChatGPT kabi yaqinlashtiradi
+*/
+
+.message-list__item:not(.message-list__item--first) {
+  margin-top: -10px;
+}
+
+.message-list__item--first {
+  margin-top: 0;
+}
+
+.message-list__item--temporary {
+  opacity: .75;
+}
+
+@keyframes messageFadeIn {
+
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+}
+
+@media (max-width:900px) {
+
+  .message-list__inner {
+    padding: 0 18px;
+  }
+
+}
+
+@media (max-width:640px) {
+
+  .message-list {
+    padding: 16px 0;
+  }
+
+  .message-list__inner {
+    padding: 0 12px;
+    gap: 14px;
+  }
+
+  .message-list__item:not(.message-list__item--first) {
+    margin-top: -8px;
+  }
+
 }
