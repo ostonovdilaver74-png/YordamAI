@@ -17,7 +17,11 @@ const router = express.Router();
 
 router.get("/", getPlans);
 
-router.get("/me", protect, getMyPlan);
+router.get(
+  "/me",
+  protect,
+  getMyPlan
+);
 
 router.get(
   "/admin/users",

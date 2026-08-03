@@ -16,13 +16,17 @@ const {
 
 const router = express.Router();
 
-const FREE_DAILY_LIMIT = Number(
-  process.env.FREE_DAILY_LIMIT
-) || 20;
+const FREE_DAILY_LIMIT =
+  Number(process.env.FREE_DAILY_LIMIT) || 20;
 
-const MAX_DOCUMENT_LENGTH = Number(
-  process.env.MAX_DOCUMENT_LENGTH
-) || 30_000;
+const MAX_DOCUMENT_LENGTH =
+  Number(process.env.MAX_DOCUMENT_LENGTH) || 30_000;
+
+const MAX_IMAGE_COUNT =
+  Number(process.env.MAX_IMAGE_COUNT) || 4;
+
+const MAX_IMAGE_DATA_LENGTH =
+  Number(process.env.MAX_IMAGE_DATA_LENGTH) || 8_000_000;
 
 const ALLOWED_MODEL_KEYS = Object.freeze([
   "GPT",
@@ -32,7 +36,7 @@ const ALLOWED_MODEL_KEYS = Object.freeze([
 ]);
 
 /* =========================================================
-   YORDAMCHI FUNKSIYALAR
+   MATNNI TOZALASH
 ========================================================= */
 
 function normalizeText(value) {
@@ -46,72 +50,318 @@ function normalizeText(value) {
     .trim();
 }
 
-function createConversationTitle(message) {
-  const cleanMessage = normalizeText(message)
-    .replace(/\s+/g, " ");
+/* =========================================================
+   IMAGE NORMALIZATION
+========================================================= */
 
-  if (!cleanMessage) {
-    return "Yangi chat";
+function normalizeImage(image) {
+  if (!image) {
+    return null;
   }
 
-  if (cleanMessage.length <= 45) {
-    return cleanMessage;
+  let imageUrl = "";
+
+  if (typeof image === "string") {
+    imageUrl = image;
+  } else if (
+    typeof image === "object"
+  ) {
+    imageUrl =
+      image.url ||
+      image.dataUrl ||
+      image.imageUrl ||
+      image.image_url?.url ||
+      "";
   }
 
-  return `${cleanMessage.slice(0, 42)}...`;
+  if (
+    typeof imageUrl !== "string"
+  ) {
+    return null;
+  }
+
+  const cleanUrl =
+    imageUrl.trim();
+
+  const isValidImageUrl =
+    cleanUrl.startsWith("data:image/") ||
+    cleanUrl.startsWith("https://") ||
+    cleanUrl.startsWith("http://");
+
+  if (!isValidImageUrl) {
+    return null;
+  }
+
+  if (
+    cleanUrl.length >
+    MAX_IMAGE_DATA_LENGTH
+  ) {
+    const error = new Error(
+      "Yuklangan rasm hajmi ruxsat etilgan limitdan katta"
+    );
+
+    error.statusCode = 413;
+    error.code = "IMAGE_TOO_LARGE";
+
+    throw error;
+  }
+
+  const detail =
+    typeof image === "object" &&
+    ["low", "high", "auto"].includes(
+      image.detail
+    )
+      ? image.detail
+      : "auto";
+
+  return {
+    url: cleanUrl,
+    detail,
+  };
 }
 
-function normalizeModelKey(modelKey) {
+function normalizeImages(
+  images = []
+) {
+  if (!Array.isArray(images)) {
+    return [];
+  }
+
+  if (
+    images.length >
+    MAX_IMAGE_COUNT
+  ) {
+    const error = new Error(
+      `Bir xabarda maksimal ${MAX_IMAGE_COUNT} ta rasm yuborish mumkin`
+    );
+
+    error.statusCode = 400;
+    error.code =
+      "IMAGE_LIMIT_EXCEEDED";
+
+    throw error;
+  }
+
+  const normalizedImages =
+    images
+      .map(normalizeImage)
+      .filter(Boolean);
+
+  if (
+    images.length > 0 &&
+    normalizedImages.length === 0
+  ) {
+    const error = new Error(
+      "Yuborilgan rasm formati noto‘g‘ri"
+    );
+
+    error.statusCode = 400;
+    error.code =
+      "INVALID_IMAGE_FORMAT";
+
+    throw error;
+  }
+
+  return normalizedImages;
+}
+
+/* =========================================================
+   MODEL TANLASH
+========================================================= */
+
+function normalizeModelKey(
+  modelKey
+) {
   const normalizedModel = String(
     modelKey || "GEMINI"
   )
     .trim()
     .toUpperCase();
 
-  if (!ALLOWED_MODEL_KEYS.includes(normalizedModel)) {
+  if (
+    !ALLOWED_MODEL_KEYS.includes(
+      normalizedModel
+    )
+  ) {
     return "GEMINI";
   }
 
   return normalizedModel;
 }
 
+/* =========================================================
+   PDF CONTEXT
+========================================================= */
+
 function normalizeDocumentContext(
   documentContext
 ) {
-  if (typeof documentContext !== "string") {
+  if (
+    typeof documentContext !==
+    "string"
+  ) {
     return "";
   }
 
   return documentContext
     .replace(/\u0000/g, "")
     .trim()
-    .slice(0, MAX_DOCUMENT_LENGTH);
+    .slice(
+      0,
+      MAX_DOCUMENT_LENGTH
+    );
 }
 
-function getDateKey(date = new Date()) {
-  const value = new Date(date);
+/* =========================================================
+   WEB SEARCH
+========================================================= */
+
+function normalizeWebSearch(
+  webSearch = false
+) {
+  if (
+    webSearch === true ||
+    webSearch === "true"
+  ) {
+    return true;
+  }
+
+  if (
+    !webSearch ||
+    typeof webSearch !== "object" ||
+    Array.isArray(webSearch)
+  ) {
+    return false;
+  }
+
+  return {
+    engine:
+      typeof webSearch.engine ===
+      "string"
+        ? webSearch.engine.trim()
+        : "auto",
+
+    maxResults:
+      Number.isFinite(
+        Number(
+          webSearch.maxResults
+        )
+      )
+        ? Number(
+            webSearch.maxResults
+          )
+        : 5,
+
+    maxTotalResults:
+      Number.isFinite(
+        Number(
+          webSearch.maxTotalResults
+        )
+      )
+        ? Number(
+            webSearch.maxTotalResults
+          )
+        : 10,
+
+    searchContextSize:
+      typeof webSearch
+        .searchContextSize ===
+      "string"
+        ? webSearch
+            .searchContextSize
+            .trim()
+        : "medium",
+
+    allowedDomains:
+      Array.isArray(
+        webSearch.allowedDomains
+      )
+        ? webSearch.allowedDomains
+        : [],
+
+    excludedDomains:
+      Array.isArray(
+        webSearch.excludedDomains
+      )
+        ? webSearch.excludedDomains
+        : [],
+  };
+}
+
+/* =========================================================
+   CHAT TITLE
+========================================================= */
+
+function createConversationTitle(
+  message
+) {
+  const cleanMessage =
+    normalizeText(message)
+      .replace(/\s+/g, " ");
+
+  if (!cleanMessage) {
+    return "Yangi chat";
+  }
+
+  if (
+    cleanMessage.length <= 45
+  ) {
+    return cleanMessage;
+  }
+
+  return `${cleanMessage.slice(
+    0,
+    42
+  )}...`;
+}
+
+/* =========================================================
+   DATE HELPERS
+========================================================= */
+
+function getDateKey(
+  date = new Date()
+) {
+  const value =
+    new Date(date);
 
   return [
     value.getFullYear(),
-    String(value.getMonth() + 1).padStart(2, "0"),
-    String(value.getDate()).padStart(2, "0"),
+
+    String(
+      value.getMonth() + 1
+    ).padStart(2, "0"),
+
+    String(
+      value.getDate()
+    ).padStart(2, "0"),
   ].join("-");
 }
 
-function isDifferentDay(firstDate, secondDate) {
+function isDifferentDay(
+  firstDate,
+  secondDate
+) {
   return (
     getDateKey(firstDate) !==
     getDateKey(secondDate)
   );
 }
 
+/* =========================================================
+   ERROR HELPERS
+========================================================= */
+
 function getErrorStatus(error) {
   const statusCode = Number(
-    error?.statusCode || error?.status
+    error?.statusCode ||
+    error?.status
   );
 
   if (
-    Number.isInteger(statusCode) &&
+    Number.isInteger(
+      statusCode
+    ) &&
     statusCode >= 400 &&
     statusCode <= 599
   ) {
@@ -121,12 +371,17 @@ function getErrorStatus(error) {
   return 500;
 }
 
-function getClientErrorMessage(error) {
-  const statusCode = getErrorStatus(error);
+function getClientErrorMessage(
+  error
+) {
+  const statusCode =
+    getErrorStatus(error);
 
   if (
-    error?.name === "AbortError" ||
-    error?.code === "AI_REQUEST_ABORTED"
+    error?.name ===
+      "AbortError" ||
+    error?.code ===
+      "AI_REQUEST_ABORTED"
   ) {
     return "AI javobini yaratish to‘xtatildi";
   }
@@ -140,13 +395,18 @@ function getClientErrorMessage(error) {
   }
 
   if (
-    error?.message?.includes("bo‘sh javob")
+    error?.message?.includes(
+      "bo‘sh javob"
+    )
   ) {
     return "AI modeli bo‘sh javob qaytardi";
   }
 
   if (statusCode === 400) {
-    return "OpenRouter yuborilgan ma’lumotlarni qabul qilmadi";
+    return (
+      error?.message ||
+      "OpenRouter yuborilgan ma’lumotlarni qabul qilmadi"
+    );
   }
 
   if (statusCode === 401) {
@@ -158,11 +418,17 @@ function getClientErrorMessage(error) {
   }
 
   if (statusCode === 403) {
-    return "Tanlangan modeldan foydalanishga ruxsat berilmadi";
+    return (
+      error?.message ||
+      "Tanlangan modeldan foydalanishga ruxsat berilmadi"
+    );
   }
 
   if (statusCode === 404) {
-    return "Tanlangan AI modeli topilmadi";
+    return (
+      error?.message ||
+      "Tanlangan AI modeli topilmadi"
+    );
   }
 
   if (
@@ -189,20 +455,32 @@ function getClientErrorMessage(error) {
   );
 }
 
-function logChatError(error, routeName) {
-  console.error(`${routeName} xatosi:`, {
-    name: error?.name,
-    message: error?.message,
-    status:
-      error?.statusCode || error?.status,
-    code: error?.code,
-    requestId:
-      error?.request_id ||
-      error?.requestId ||
-      null,
-  });
-}
+function logChatError(
+  error,
+  routeName
+) {
+  console.error(
+    `${routeName} xatosi:`,
+    {
+      name: error?.name,
 
+      message:
+        error?.message,
+
+      status:
+        error?.statusCode ||
+        error?.status,
+
+      code:
+        error?.code,
+
+      requestId:
+        error?.request_id ||
+        error?.requestId ||
+        null,
+    }
+  );
+}
 /* =========================================================
    SSE FUNKSIYALARI
 ========================================================= */
@@ -245,9 +523,14 @@ function sendSseEvent(
     return false;
   }
 
-  res.write(`event: ${eventName}\n`);
   res.write(
-    `data: ${JSON.stringify(payload)}\n\n`
+    `event: ${eventName}\n`
+  );
+
+  res.write(
+    `data: ${JSON.stringify(
+      payload
+    )}\n\n`
   );
 
   return true;
@@ -266,8 +549,13 @@ function closeSseResponse(res) {
    USER VA LIMIT
 ========================================================= */
 
-async function getActiveUser(userId) {
-  const user = await User.findById(userId);
+async function getActiveUser(
+  userId
+) {
+  const user =
+    await User.findById(
+      userId
+    );
 
   if (!user) {
     const error = new Error(
@@ -275,18 +563,22 @@ async function getActiveUser(userId) {
     );
 
     error.statusCode = 404;
-    error.code = "USER_NOT_FOUND";
+    error.code =
+      "USER_NOT_FOUND";
 
     throw error;
   }
 
-  if (user.isActive === false) {
+  if (
+    user.isActive === false
+  ) {
     const error = new Error(
       "Foydalanuvchi hisobi bloklangan"
     );
 
     error.statusCode = 403;
-    error.code = "USER_DISABLED";
+    error.code =
+      "USER_DISABLED";
 
     throw error;
   }
@@ -294,19 +586,28 @@ async function getActiveUser(userId) {
   return user;
 }
 
-async function refreshDailyUsage(user) {
-  const today = new Date();
+async function refreshDailyUsage(
+  user
+) {
+  const today =
+    new Date();
 
   const lastMessageDate =
     user.dailyMessageDate
-      ? new Date(user.dailyMessageDate)
+      ? new Date(
+          user.dailyMessageDate
+        )
       : today;
 
   if (
-    isDifferentDay(today, lastMessageDate)
+    isDifferentDay(
+      today,
+      lastMessageDate
+    )
   ) {
     user.dailyMessageCount = 0;
-    user.dailyMessageDate = today;
+    user.dailyMessageDate =
+      today;
 
     await user.save();
   }
@@ -314,15 +615,21 @@ async function refreshDailyUsage(user) {
   return user;
 }
 
-function getUsageInformation(user) {
-  const currentDailyCount = Number(
-    user.dailyMessageCount || 0
-  );
+function getUsageInformation(
+  user
+) {
+  const currentDailyCount =
+    Number(
+      user.dailyMessageCount ||
+        0
+    );
 
-  const isFree = user.plan === "free";
+  const isFree =
+    user.plan === "free";
 
   return {
-    plan: user.plan || "free",
+    plan:
+      user.plan || "free",
 
     dailyMessageCount:
       currentDailyCount,
@@ -343,27 +650,38 @@ function getUsageInformation(user) {
   };
 }
 
-function assertDailyLimit(user) {
-  const currentDailyCount = Number(
-    user.dailyMessageCount || 0
-  );
+function assertDailyLimit(
+  user
+) {
+  const currentDailyCount =
+    Number(
+      user.dailyMessageCount ||
+        0
+    );
 
   if (
     user.plan === "free" &&
-    currentDailyCount >= FREE_DAILY_LIMIT
+    currentDailyCount >=
+      FREE_DAILY_LIMIT
   ) {
     const error = new Error(
       `🚫 Bugungi bepul ${FREE_DAILY_LIMIT} ta xabar limitingiz tugadi. Ertaga qayta urinib ko‘ring yoki Pro tarifga o‘ting.`
     );
 
     error.statusCode = 403;
-    error.code = "DAILY_LIMIT_REACHED";
+    error.code =
+      "DAILY_LIMIT_REACHED";
 
     error.usage = {
-      plan: user.plan,
+      plan:
+        user.plan,
+
       dailyMessageCount:
         currentDailyCount,
-      dailyLimit: FREE_DAILY_LIMIT,
+
+      dailyLimit:
+        FREE_DAILY_LIMIT,
+
       remaining: 0,
     };
 
@@ -371,15 +689,23 @@ function assertDailyLimit(user) {
   }
 }
 
-async function incrementDailyUsage(user) {
+async function incrementDailyUsage(
+  user
+) {
   user.dailyMessageCount =
-    Number(user.dailyMessageCount || 0) + 1;
+    Number(
+      user.dailyMessageCount ||
+        0
+    ) + 1;
 
-  user.dailyMessageDate = new Date();
+  user.dailyMessageDate =
+    new Date();
 
   await user.save();
 
-  return getUsageInformation(user);
+  return getUsageInformation(
+    user
+  );
 }
 
 /* =========================================================
@@ -397,9 +723,10 @@ async function resolveConversation({
         conversationId
       )
     ) {
-      const error = new Error(
-        "Chat ID formati noto‘g‘ri"
-      );
+      const error =
+        new Error(
+          "Chat ID formati noto‘g‘ri"
+        );
 
       error.statusCode = 400;
       error.code =
@@ -410,14 +737,18 @@ async function resolveConversation({
 
     const conversation =
       await Conversation.findOne({
-        _id: conversationId,
-        user: userId,
+        _id:
+          conversationId,
+
+        user:
+          userId,
       });
 
     if (!conversation) {
-      const error = new Error(
-        "Chat topilmadi"
-      );
+      const error =
+        new Error(
+          "Chat topilmadi"
+        );
 
       error.statusCode = 404;
       error.code =
@@ -428,20 +759,26 @@ async function resolveConversation({
 
     return {
       conversation,
-      isNewConversation: false,
+      isNewConversation:
+        false,
     };
   }
 
   const conversation =
     await Conversation.create({
-      user: userId,
+      user:
+        userId,
+
       title:
-        createConversationTitle(message),
+        createConversationTitle(
+          message
+        ),
     });
 
   return {
     conversation,
-    isNewConversation: true,
+    isNewConversation:
+      true,
   };
 }
 
@@ -451,18 +788,22 @@ async function updateConversationTitleIfNeeded({
 }) {
   const existingMessageCount =
     await Message.countDocuments({
-      conversation: conversation._id,
+      conversation:
+        conversation._id,
     });
 
   if (
     existingMessageCount === 0 &&
     (
       !conversation.title ||
-      conversation.title === "Yangi chat"
+      conversation.title ===
+        "Yangi chat"
     )
   ) {
     conversation.title =
-      createConversationTitle(message);
+      createConversationTitle(
+        message
+      );
 
     await conversation.save();
   }
@@ -472,12 +813,15 @@ async function getConversationMessages(
   conversationId
 ) {
   return Message.find({
-    conversation: conversationId,
+    conversation:
+      conversationId,
   })
     .sort({
       createdAt: 1,
     })
-    .select("role content")
+    .select(
+      "role content"
+    )
     .lean();
 }
 
@@ -489,7 +833,8 @@ async function cleanupFailedRequest({
   try {
     if (userMessageId) {
       await Message.deleteOne({
-        _id: userMessageId,
+        _id:
+          userMessageId,
       });
     }
 
@@ -499,12 +844,16 @@ async function cleanupFailedRequest({
     ) {
       const remainingMessages =
         await Message.countDocuments({
-          conversation: conversationId,
+          conversation:
+            conversationId,
         });
 
-      if (remainingMessages === 0) {
+      if (
+        remainingMessages === 0
+      ) {
         await Conversation.deleteOne({
-          _id: conversationId,
+          _id:
+            conversationId,
         });
       }
     }
@@ -515,38 +864,63 @@ async function cleanupFailedRequest({
     );
   }
 }
-
 /* =========================================================
    SO‘ROVNI VALIDATSIYA QILISH
 ========================================================= */
 
-function normalizeChatRequest(body = {}) {
+function normalizeChatRequest(
+  body = {}
+) {
   const cleanMessage =
-    normalizeText(body.message);
-
-  if (!cleanMessage) {
-    const error = new Error(
-      "Xabar yozilishi kerak"
+    normalizeText(
+      body.message
     );
 
+  const images =
+    normalizeImages(
+      body.images
+    );
+
+  if (
+    !cleanMessage &&
+    images.length === 0
+  ) {
+    const error =
+      new Error(
+        "Xabar yozilishi yoki rasm yuklanishi kerak"
+      );
+
     error.statusCode = 400;
-    error.code = "MESSAGE_REQUIRED";
+    error.code =
+      "MESSAGE_OR_IMAGE_REQUIRED";
 
     throw error;
   }
 
   return {
-    message: cleanMessage,
+    message:
+      cleanMessage ||
+      "Ushbu rasmni tahlil qilib bering.",
 
     conversationId:
-      body.conversationId || null,
+      body.conversationId ||
+      null,
 
     modelKey:
-      normalizeModelKey(body.modelKey),
+      normalizeModelKey(
+        body.modelKey
+      ),
 
     documentContext:
       normalizeDocumentContext(
         body.documentContext
+      ),
+
+    images,
+
+    webSearch:
+      normalizeWebSearch(
+        body.webSearch
       ),
   };
 }
@@ -570,19 +944,33 @@ router.post(
         conversationId,
         modelKey,
         documentContext,
-      } = normalizeChatRequest(req.body);
+        images,
+        webSearch,
+      } =
+        normalizeChatRequest(
+          req.body
+        );
 
-      const user = await getActiveUser(
-        req.user._id
+      const user =
+        await getActiveUser(
+          req.user._id
+        );
+
+      await refreshDailyUsage(
+        user
       );
 
-      await refreshDailyUsage(user);
-      assertDailyLimit(user);
+      assertDailyLimit(
+        user
+      );
 
       const resolved =
         await resolveConversation({
           conversationId,
-          userId: user._id,
+
+          userId:
+            user._id,
+
           message,
         });
 
@@ -597,12 +985,16 @@ router.post(
         message,
       });
 
-      userMessage = await Message.create({
-        conversation:
-          conversation._id,
-        role: "user",
-        content: message,
-      });
+      userMessage =
+        await Message.create({
+          conversation:
+            conversation._id,
+
+          role: "user",
+
+          content:
+            message,
+        });
 
       const previousMessages =
         await getConversationMessages(
@@ -613,15 +1005,23 @@ router.post(
         await generateAIReply(
           previousMessages,
           modelKey,
-          documentContext
+          documentContext,
+          {
+            images,
+            webSearch,
+          }
         );
 
       const assistantMessage =
         await Message.create({
           conversation:
             conversation._id,
-          role: "assistant",
-          content: aiResult.reply,
+
+          role:
+            "assistant",
+
+          content:
+            aiResult.reply,
         });
 
       conversation.updatedAt =
@@ -630,46 +1030,109 @@ router.post(
       await conversation.save();
 
       const usage =
-        await incrementDailyUsage(user);
+        await incrementDailyUsage(
+          user
+        );
 
-      return res.status(200).json({
-        success: true,
+      return res
+        .status(200)
+        .json({
+          success: true,
 
-        conversation,
-        userMessage,
-        assistantMessage,
+          conversation,
 
-        reply: aiResult.reply,
+          userMessage,
 
-        ai: {
-          modelKey:
-            aiResult.modelKey ||
-            modelKey,
+          assistantMessage,
 
-          model:
-            aiResult.model,
+          reply:
+            aiResult.reply,
 
-          finishReason:
-            aiResult.finishReason ||
-            null,
+          sources:
+            Array.isArray(
+              aiResult.sources
+            )
+              ? aiResult.sources
+              : [],
 
-          usage:
-            aiResult.usage || null,
+          webSearchUsed:
+            Boolean(
+              aiResult.webSearchUsed
+            ),
 
-          requestId:
-            aiResult.requestId || null,
-        },
+          ai: {
+            modelKey:
+              aiResult.modelKey ||
+              modelKey,
 
-        document: {
-          attached:
-            Boolean(documentContext),
+            model:
+              aiResult.model ||
+              null,
 
-          contextLength:
-            documentContext.length,
-        },
+            finishReason:
+              aiResult.finishReason ||
+              null,
 
-        usage,
-      });
+            usage:
+              aiResult.usage ||
+              null,
+
+            requestId:
+              aiResult.requestId ||
+              null,
+
+            sources:
+              Array.isArray(
+                aiResult.sources
+              )
+                ? aiResult.sources
+                : [],
+
+            webSearchUsed:
+              Boolean(
+                aiResult.webSearchUsed
+              ),
+          },
+
+          document: {
+            attached:
+              Boolean(
+                documentContext
+              ),
+
+            contextLength:
+              documentContext.length,
+          },
+
+          vision: {
+            attached:
+              images.length > 0,
+
+            imageCount:
+              images.length,
+          },
+
+          webSearch: {
+            enabled:
+              Boolean(
+                webSearch
+              ),
+
+            used:
+              Boolean(
+                aiResult.webSearchUsed
+              ),
+
+            sourceCount:
+              Array.isArray(
+                aiResult.sources
+              )
+                ? aiResult.sources.length
+                : 0,
+          },
+
+          usage,
+        });
     } catch (error) {
       logChatError(
         error,
@@ -682,17 +1145,21 @@ router.post(
       ) {
         await cleanupFailedRequest({
           userMessageId:
-            userMessage?._id || null,
+            userMessage?._id ||
+            null,
 
           conversationId:
-            conversation?._id || null,
+            conversation?._id ||
+            null,
 
           isNewConversation,
         });
       }
 
       const statusCode =
-        getErrorStatus(error);
+        getErrorStatus(
+          error
+        );
 
       return res
         .status(statusCode)
@@ -704,18 +1171,20 @@ router.post(
             "CHAT_REQUEST_FAILED",
 
           error:
-            getClientErrorMessage(error),
+            getClientErrorMessage(
+              error
+            ),
 
           ...(error.usage
             ? {
-                usage: error.usage,
+                usage:
+                  error.usage,
               }
             : {}),
         });
     }
   }
 );
-
 /* =========================================================
    STREAMING CHAT
    POST /api/chat/stream
@@ -745,7 +1214,10 @@ router.post(
       }
     };
 
-    req.on("close", handleClientClose);
+    req.on(
+      "close",
+      handleClientClose
+    );
 
     try {
       const {
@@ -753,19 +1225,48 @@ router.post(
         conversationId,
         modelKey,
         documentContext,
-      } = normalizeChatRequest(req.body);
+        images,
+        webSearch,
+      } =
+        normalizeChatRequest(
+          req.body
+        );
 
-      user = await getActiveUser(
-        req.user._id
+      console.log(
+        "CHAT STREAM REQUEST:",
+        {
+          message,
+          modelKey,
+          webSearch,
+          imageCount:
+            images.length,
+          hasDocument:
+            Boolean(
+              documentContext
+            ),
+        }
       );
 
-      await refreshDailyUsage(user);
-      assertDailyLimit(user);
+      user =
+        await getActiveUser(
+          req.user._id
+        );
+
+      await refreshDailyUsage(
+        user
+      );
+
+      assertDailyLimit(
+        user
+      );
 
       const resolved =
         await resolveConversation({
           conversationId,
-          userId: user._id,
+
+          userId:
+            user._id,
+
           message,
         });
 
@@ -780,19 +1281,26 @@ router.post(
         message,
       });
 
-      userMessage = await Message.create({
-        conversation:
-          conversation._id,
-        role: "user",
-        content: message,
-      });
+      userMessage =
+        await Message.create({
+          conversation:
+            conversation._id,
+
+          role:
+            "user",
+
+          content:
+            message,
+        });
 
       const previousMessages =
         await getConversationMessages(
           conversation._id
         );
 
-      configureSseResponse(res);
+      configureSseResponse(
+        res
+      );
 
       sendSseEvent(
         res,
@@ -806,36 +1314,69 @@ router.post(
 
           ai: {
             modelKey,
+            webSearchUsed:
+              Boolean(
+                webSearch
+              ),
           },
 
           document: {
             attached:
-              Boolean(documentContext),
+              Boolean(
+                documentContext
+              ),
 
             contextLength:
               documentContext.length,
           },
 
+          vision: {
+            attached:
+              images.length > 0,
+
+            imageCount:
+              images.length,
+          },
+
+          webSearch: {
+            enabled:
+              Boolean(
+                webSearch
+              ),
+
+            used: false,
+
+            sourceCount: 0,
+          },
+
           usage:
-            getUsageInformation(user),
+            getUsageInformation(
+              user
+            ),
         }
       );
 
       let finalAiResult = null;
 
       for await (
-        const streamEvent of streamAIReply(
-          previousMessages,
-          modelKey,
-          documentContext,
-          {
-            signal:
-              abortController.signal,
-          }
-        )
+        const streamEvent of
+          streamAIReply(
+            previousMessages,
+            modelKey,
+            documentContext,
+            {
+              signal:
+                abortController.signal,
+
+              images,
+
+              webSearch,
+            }
+          )
       ) {
         if (
-          streamEvent.type === "start"
+          streamEvent.type ===
+          "start"
         ) {
           sendSseEvent(
             res,
@@ -846,6 +1387,12 @@ router.post(
 
               modelKey:
                 streamEvent.modelKey,
+
+              webSearchUsed:
+                Boolean(
+                  streamEvent
+                    .webSearchUsed
+                ),
             }
           );
 
@@ -853,7 +1400,8 @@ router.post(
         }
 
         if (
-          streamEvent.type === "token"
+          streamEvent.type ===
+          "token"
         ) {
           fullReply +=
             streamEvent.token;
@@ -864,6 +1412,19 @@ router.post(
             {
               token:
                 streamEvent.token,
+
+              sources:
+                Array.isArray(
+                  streamEvent.sources
+                )
+                  ? streamEvent.sources
+                  : [],
+
+              webSearchUsed:
+                Boolean(
+                  streamEvent
+                    .webSearchUsed
+                ),
             }
           );
 
@@ -878,30 +1439,42 @@ router.post(
             streamEvent;
         }
       }
-
-      const cleanReply =
+            const cleanReply =
         normalizeText(
           finalAiResult?.reply ||
             fullReply
         );
 
       if (!cleanReply) {
-        const error = new Error(
-          "AI modeli bo‘sh streaming javob qaytardi"
-        );
+        const error =
+          new Error(
+            "AI modeli bo‘sh streaming javob qaytardi"
+          );
 
         error.statusCode = 502;
-        error.code = "EMPTY_AI_REPLY";
+        error.code =
+          "EMPTY_AI_REPLY";
 
         throw error;
       }
+
+      const finalSources =
+        Array.isArray(
+          finalAiResult?.sources
+        )
+          ? finalAiResult.sources
+          : [];
 
       assistantMessage =
         await Message.create({
           conversation:
             conversation._id,
-          role: "assistant",
-          content: cleanReply,
+
+          role:
+            "assistant",
+
+          content:
+            cleanReply,
         });
 
       conversation.updatedAt =
@@ -910,7 +1483,9 @@ router.post(
       await conversation.save();
 
       const usage =
-        await incrementDailyUsage(user);
+        await incrementDailyUsage(
+          user
+        );
 
       streamCompleted = true;
 
@@ -926,15 +1501,27 @@ router.post(
 
           assistantMessage,
 
-          reply: cleanReply,
+          reply:
+            cleanReply,
+
+          sources:
+            finalSources,
+
+          webSearchUsed:
+            Boolean(
+              finalAiResult
+                ?.webSearchUsed
+            ),
 
           ai: {
             modelKey:
-              finalAiResult?.modelKey ||
+              finalAiResult
+                ?.modelKey ||
               modelKey,
 
             model:
-              finalAiResult?.model ||
+              finalAiResult
+                ?.model ||
               null,
 
             finishReason:
@@ -943,34 +1530,74 @@ router.post(
               null,
 
             usage:
-              finalAiResult?.usage ||
+              finalAiResult
+                ?.usage ||
               null,
 
             requestId:
               finalAiResult
                 ?.requestId ||
               null,
+
+            sources:
+              finalSources,
+
+            webSearchUsed:
+              Boolean(
+                finalAiResult
+                  ?.webSearchUsed
+              ),
           },
 
           document: {
             attached:
-              Boolean(documentContext),
+              Boolean(
+                documentContext
+              ),
 
             contextLength:
               documentContext.length,
+          },
+
+          vision: {
+            attached:
+              images.length > 0,
+
+            imageCount:
+              images.length,
+          },
+
+          webSearch: {
+            enabled:
+              Boolean(
+                webSearch
+              ),
+
+            used:
+              Boolean(
+                finalAiResult
+                  ?.webSearchUsed
+              ),
+
+            sourceCount:
+              finalSources.length,
           },
 
           usage,
         }
       );
 
-      closeSseResponse(res);
-    } catch (error) {
+      closeSseResponse(
+        res
+      );
+          } catch (error) {
       const wasAborted =
-        error?.name === "AbortError" ||
+        error?.name ===
+          "AbortError" ||
         error?.code ===
           "AI_REQUEST_ABORTED" ||
-        abortController.signal.aborted;
+        abortController.signal
+          .aborted;
 
       if (
         wasAborted &&
@@ -978,14 +1605,20 @@ router.post(
       ) {
         try {
           const partialReply =
-            normalizeText(fullReply);
+            normalizeText(
+              fullReply
+            );
 
           assistantMessage =
             await Message.create({
               conversation:
                 conversation._id,
-              role: "assistant",
-              content: partialReply,
+
+              role:
+                "assistant",
+
+              content:
+                partialReply,
             });
 
           conversation.updatedAt =
@@ -998,7 +1631,9 @@ router.post(
               user
             );
           }
-        } catch (savePartialError) {
+        } catch (
+          savePartialError
+        ) {
           console.error(
             "To‘xtatilgan javobni saqlash xatosi:",
             savePartialError
@@ -1010,10 +1645,12 @@ router.post(
       ) {
         await cleanupFailedRequest({
           userMessageId:
-            userMessage?._id || null,
+            userMessage?._id ||
+            null,
 
           conversationId:
-            conversation?._id || null,
+            conversation?._id ||
+            null,
 
           isNewConversation,
         });
@@ -1026,13 +1663,13 @@ router.post(
         );
       }
 
-      if (
-        !res.headersSent
-      ) {
+      if (!res.headersSent) {
         const statusCode =
           wasAborted
             ? 499
-            : getErrorStatus(error);
+            : getErrorStatus(
+                error
+              );
 
         return res
           .status(statusCode)
@@ -1086,6 +1723,8 @@ router.post(
                 fullReply
               ),
 
+            sources: [],
+
             ...(error.usage
               ? {
                   usage:
@@ -1095,7 +1734,9 @@ router.post(
           }
         );
 
-        closeSseResponse(res);
+        closeSseResponse(
+          res
+        );
       }
     } finally {
       streamCompleted = true;
