@@ -1,12 +1,23 @@
-import { useMemo, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import {
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  NavLink,
+  useNavigate,
+} from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
 import { useConversation } from "../context/ConversationContext";
 
 export default function Sidebar() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+
+  const {
+    user,
+    logout,
+  } = useAuth();
 
   const {
     conversations = [],
@@ -17,24 +28,43 @@ export default function Sidebar() {
     removeConversation,
   } = useConversation();
 
-  const [search, setSearch] = useState("");
-  const [deletingId, setDeletingId] = useState(null);
+  const [
+    search,
+    setSearch,
+  ] = useState("");
 
-  const filteredConversations = useMemo(() => {
-    const cleanSearch = search.trim().toLowerCase();
+  const [
+    deletingId,
+    setDeletingId,
+  ] = useState(null);
 
-    if (!cleanSearch) {
-      return conversations;
-    }
+  const filteredConversations =
+    useMemo(() => {
+      const cleanSearch = search
+        .trim()
+        .toLowerCase();
 
-    return conversations.filter((conversation) =>
-      (conversation.title || "Yangi chat")
-        .toLowerCase()
-        .includes(cleanSearch)
-    );
-  }, [conversations, search]);
+      if (!cleanSearch) {
+        return conversations;
+      }
 
-  const linkClass = ({ isActive }) =>
+      return conversations.filter(
+        (conversation) =>
+          (
+            conversation.title ||
+            "Yangi chat"
+          )
+            .toLowerCase()
+            .includes(cleanSearch)
+      );
+    }, [
+      conversations,
+      search,
+    ]);
+
+  const linkClass = ({
+    isActive,
+  }) =>
     `px-4 py-3 rounded-xl transition ${
       isActive
         ? "bg-slate-900 text-white"
@@ -42,7 +72,8 @@ export default function Sidebar() {
     }`;
 
   async function handleNewChat() {
-    const conversation = await newChat();
+    const conversation =
+      await newChat();
 
     if (conversation) {
       setSearch("");
@@ -50,28 +81,44 @@ export default function Sidebar() {
     }
   }
 
-  async function handleOpenChat(conversationId) {
-    await openConversation(conversationId);
+  async function handleOpenChat(
+    conversationId
+  ) {
+    await openConversation(
+      conversationId
+    );
+
     navigate("/chat");
   }
 
-  async function handleDelete(event, conversationId) {
+  async function handleDelete(
+    event,
+    conversationId
+  ) {
     event.stopPropagation();
 
-    const confirmed = window.confirm(
-      "Ushbu chatni o‘chirishni xohlaysizmi?"
-    );
+    const confirmed =
+      window.confirm(
+        "Ushbu chatni o‘chirishni xohlaysizmi?"
+      );
 
     if (!confirmed) {
       return;
     }
 
     try {
-      setDeletingId(conversationId);
+      setDeletingId(
+        conversationId
+      );
 
-      await removeConversation(conversationId);
+      await removeConversation(
+        conversationId
+      );
 
-      if (activeConversation?._id === conversationId) {
+      if (
+        activeConversation?._id ===
+        conversationId
+      ) {
         navigate("/chat");
       }
     } finally {
@@ -80,7 +127,7 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="w-80 h-screen bg-white border-r border-slate-200 flex flex-col p-4">
+    <aside className="flex h-screen w-80 flex-col border-r border-slate-200 bg-white p-4">
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-slate-900">
           🤖 YordamAI
@@ -99,7 +146,11 @@ export default function Sidebar() {
         <input
           type="text"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) =>
+            setSearch(
+              event.target.value
+            )
+          }
           placeholder="Chatlarni qidirish..."
           className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
         />
@@ -107,8 +158,10 @@ export default function Sidebar() {
         {search && (
           <button
             type="button"
-            onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+            onClick={() =>
+              setSearch("")
+            }
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
             aria-label="Qidiruvni tozalash"
           >
             ✕
@@ -118,9 +171,13 @@ export default function Sidebar() {
 
       <button
         type="button"
-        onClick={handleNewChat}
-        disabled={conversationLoading}
-        className="mt-4 bg-slate-900 text-white py-3 rounded-xl hover:bg-slate-800 transition disabled:cursor-not-allowed disabled:opacity-60"
+        onClick={
+          handleNewChat
+        }
+        disabled={
+          conversationLoading
+        }
+        className="mt-4 rounded-xl bg-slate-900 py-3 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {conversationLoading
           ? "Yaratilmoqda..."
@@ -128,19 +185,48 @@ export default function Sidebar() {
       </button>
 
       <nav className="mt-5 flex flex-col gap-2">
-        <NavLink to="/" className={linkClass}>
+        <NavLink
+          to="/"
+          className={
+            linkClass
+          }
+        >
           🏠 Bosh sahifa
         </NavLink>
 
-        <NavLink to="/chat" className={linkClass}>
+        <NavLink
+          to="/chat"
+          className={
+            linkClass
+          }
+        >
           💬 AI Chat
         </NavLink>
 
-        <NavLink to="/cv" className={linkClass}>
+        <NavLink
+          to="/pricing"
+          className={
+            linkClass
+          }
+        >
+          💎 Tariflar
+        </NavLink>
+
+        <NavLink
+          to="/cv"
+          className={
+            linkClass
+          }
+        >
           📄 CV Generator
         </NavLink>
 
-        <NavLink to="/translate" className={linkClass}>
+        <NavLink
+          to="/translate"
+          className={
+            linkClass
+          }
+        >
           🌍 Tarjimon
         </NavLink>
       </nav>
@@ -152,84 +238,139 @@ export default function Sidebar() {
           </p>
 
           <span className="text-xs text-slate-400">
-            {filteredConversations.length}
+            {
+              filteredConversations.length
+            }
           </span>
         </div>
 
         <div className="flex flex-col gap-2">
-          {conversations.length === 0 && (
+          {conversations.length ===
+            0 && (
             <p className="px-4 py-3 text-sm text-slate-400">
               Chatlar hali mavjud emas
             </p>
           )}
 
-          {conversations.length > 0 &&
-            filteredConversations.length === 0 && (
+          {conversations.length >
+            0 &&
+            filteredConversations.length ===
+              0 && (
               <p className="px-4 py-3 text-sm text-slate-400">
                 Mos chat topilmadi
               </p>
             )}
 
-          {filteredConversations.map((conversation) => {
-            const isActive =
-              activeConversation?._id === conversation._id;
+          {filteredConversations.map(
+            (
+              conversation
+            ) => {
+              const isActive =
+                activeConversation?._id ===
+                conversation._id;
 
-            const isDeleting =
-              deletingId === conversation._id;
+              const isDeleting =
+                deletingId ===
+                conversation._id;
 
-            return (
-              <div
-                key={conversation._id}
-                className={`group flex items-center rounded-xl transition ${
-                  isActive
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleOpenChat(conversation._id)
+              return (
+                <div
+                  key={
+                    conversation._id
                   }
-                  disabled={isDeleting}
-                  className="min-w-0 flex-1 truncate px-4 py-3 text-left disabled:opacity-50"
-                  title={conversation.title || "Yangi chat"}
+                  className={`group flex items-center rounded-xl transition ${
+                    isActive
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
                 >
-                  💬 {conversation.title || "Yangi chat"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleOpenChat(
+                        conversation._id
+                      )
+                    }
+                    disabled={
+                      isDeleting
+                    }
+                    className="min-w-0 flex-1 truncate px-4 py-3 text-left disabled:opacity-50"
+                    title={
+                      conversation.title ||
+                      "Yangi chat"
+                    }
+                  >
+                    💬{" "}
+                    {conversation.title ||
+                      "Yangi chat"}
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={(event) =>
-                    handleDelete(event, conversation._id)
-                  }
-                  disabled={isDeleting}
-                  className="px-3 py-3 opacity-0 transition group-hover:opacity-100 disabled:opacity-50"
-                  title="Chatni o‘chirish"
-                  aria-label="Chatni o‘chirish"
-                >
-                  {isDeleting ? "..." : "🗑️"}
-                </button>
-              </div>
-            );
-          })}
+                  <button
+                    type="button"
+                    onClick={(
+                      event
+                    ) =>
+                      handleDelete(
+                        event,
+                        conversation._id
+                      )
+                    }
+                    disabled={
+                      isDeleting
+                    }
+                    className="px-3 py-3 opacity-0 transition group-hover:opacity-100 disabled:opacity-50"
+                    title="Chatni o‘chirish"
+                    aria-label="Chatni o‘chirish"
+                  >
+                    {isDeleting
+                      ? "..."
+                      : "🗑️"}
+                  </button>
+                </div>
+              );
+            }
+          )}
         </div>
       </div>
 
       <div className="border-t pt-4">
         <div className="rounded-2xl bg-slate-100 p-4">
           <p className="font-semibold text-slate-900">
-            👤 {user?.name || "Foydalanuvchi"}
+            👤{" "}
+            {user?.name ||
+              "Foydalanuvchi"}
           </p>
 
           <p className="text-sm capitalize text-slate-500">
-            {user?.plan || "free"} plan
+            {user?.plan ||
+              "free"}{" "}
+            plan
           </p>
+
+          {String(
+            user?.plan ||
+              "free"
+          ).toLowerCase() !==
+            "pro" && (
+            <button
+              type="button"
+              onClick={() =>
+                navigate(
+                  "/pricing"
+                )
+              }
+              className="mt-3 block text-sm font-semibold text-blue-600 hover:underline"
+            >
+              💎 Pro ga o‘tish
+            </button>
+          )}
 
           <button
             type="button"
-            onClick={logout}
-            className="mt-3 text-sm text-red-500 hover:underline"
+            onClick={
+              logout
+            }
+            className="mt-3 block text-sm text-red-500 hover:underline"
           >
             Chiqish
           </button>

@@ -1,4 +1,5 @@
-const DEFAULT_API_BASE_URL = "http://localhost:5000/api";
+const DEFAULT_API_BASE_URL =
+  "http://localhost:5000/api";
 
 const API_BASE_URL = String(
   import.meta.env.VITE_API_URL ||
@@ -7,10 +8,18 @@ const API_BASE_URL = String(
   .trim()
   .replace(/\/+$/, "");
 
-const CHAT_API_URL = `${API_BASE_URL}/chat`;
-const CHAT_STREAM_API_URL = `${CHAT_API_URL}/stream`;
+const CHAT_API_URL =
+  `${API_BASE_URL}/chat`;
 
-const TOKEN_STORAGE_KEY = "yordamai_token";
+const CHAT_STREAM_API_URL =
+  `${CHAT_API_URL}/stream`;
+
+const TOKEN_STORAGE_KEY =
+  "yordamai_token";
+
+/* =========================================================
+   TOKEN
+========================================================= */
 
 function getToken() {
   try {
@@ -27,6 +36,10 @@ function getToken() {
   }
 }
 
+/* =========================================================
+   MATNNI TOZALASH
+========================================================= */
+
 function normalizeText(value) {
   if (typeof value !== "string") {
     return "";
@@ -37,6 +50,10 @@ function normalizeText(value) {
     .replace(/\r\n/g, "\n")
     .trim();
 }
+
+/* =========================================================
+   MODEL TANLASH
+========================================================= */
 
 function normalizeModelKey(modelKey) {
   const value = String(
@@ -57,22 +74,111 @@ function normalizeModelKey(modelKey) {
     : "GEMINI";
 }
 
+/* =========================================================
+   WEB SEARCH
+========================================================= */
+
+function normalizeWebSearch(
+  webSearch = false
+) {
+  if (
+    webSearch === true ||
+    webSearch === "true"
+  ) {
+    return true;
+  }
+
+  if (
+    !webSearch ||
+    typeof webSearch !== "object" ||
+    Array.isArray(webSearch)
+  ) {
+    return false;
+  }
+
+  const result = {
+    engine:
+      typeof webSearch.engine === "string"
+        ? webSearch.engine.trim()
+        : "auto",
+
+    maxResults:
+      Number.isFinite(
+        Number(webSearch.maxResults)
+      )
+        ? Number(webSearch.maxResults)
+        : 5,
+
+    maxTotalResults:
+      Number.isFinite(
+        Number(
+          webSearch.maxTotalResults
+        )
+      )
+        ? Number(
+            webSearch.maxTotalResults
+          )
+        : 10,
+
+    searchContextSize:
+      typeof webSearch
+        .searchContextSize === "string"
+        ? webSearch
+            .searchContextSize
+            .trim()
+        : "medium",
+
+    allowedDomains:
+      Array.isArray(
+        webSearch.allowedDomains
+      )
+        ? webSearch.allowedDomains
+        : [],
+
+    excludedDomains:
+      Array.isArray(
+        webSearch.excludedDomains
+      )
+        ? webSearch.excludedDomains
+        : [],
+  };
+
+  return result;
+}
+
+/* =========================================================
+   REQUEST BODY
+========================================================= */
+
 function createRequestBody({
   message,
   conversationId = null,
   modelKey = "GEMINI",
   documentContext = "",
+  images = [],
+  webSearch = false,
 }) {
-  const cleanMessage = normalizeText(message);
+  const cleanMessage =
+    normalizeText(message);
 
-  if (!cleanMessage) {
+  const normalizedImages =
+    Array.isArray(images)
+      ? images
+      : [];
+
+  if (
+    !cleanMessage &&
+    normalizedImages.length === 0
+  ) {
     throw new Error(
-      "AI uchun xabar yozilishi kerak"
+      "AI uchun xabar yozilishi yoki rasm yuklanishi kerak"
     );
   }
 
   return {
-    message: cleanMessage,
+    message:
+      cleanMessage ||
+      "Ushbu rasmni tahlil qilib bering.",
 
     conversationId:
       conversationId || null,
@@ -84,8 +190,18 @@ function createRequestBody({
       typeof documentContext === "string"
         ? documentContext
         : "",
+
+    images:
+      normalizedImages,
+
+    webSearch:
+      normalizeWebSearch(webSearch),
   };
 }
+
+/* =========================================================
+   REQUEST HEADERS
+========================================================= */
 
 function createRequestHeaders() {
   const token = getToken();
@@ -95,30 +211,50 @@ function createRequestHeaders() {
       "Sessiya topilmadi. Qayta tizimga kiring."
     );
 
-    error.code = "AUTH_TOKEN_MISSING";
+    error.code =
+      "AUTH_TOKEN_MISSING";
+
     error.status = 401;
 
     throw error;
   }
 
   return {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    Authorization: `Bearer ${token}`,
+    "Content-Type":
+      "application/json",
+
+    Accept:
+      "application/json",
+
+    Authorization:
+      `Bearer ${token}`,
   };
 }
 
-async function parseJsonSafely(response) {
+/* =========================================================
+   JSON JAVOBNI O‘QISH
+========================================================= */
+
+async function parseJsonSafely(
+  response
+) {
   const contentType =
-    response.headers.get("content-type") || "";
+    response.headers.get(
+      "content-type"
+    ) || "";
 
   if (
-    !contentType.includes("application/json")
+    !contentType.includes(
+      "application/json"
+    )
   ) {
-    const text = await response.text();
+    const text =
+      await response.text();
 
     return {
-      success: response.ok,
+      success:
+        response.ok,
+
       error:
         normalizeText(text) ||
         "Server noto‘g‘ri javob qaytardi",
@@ -130,11 +266,16 @@ async function parseJsonSafely(response) {
   } catch {
     return {
       success: false,
+
       error:
         "Server javobini o‘qishda xatolik yuz berdi",
     };
   }
 }
+
+/* =========================================================
+   API ERROR
+========================================================= */
 
 function createApiError({
   message,
@@ -143,21 +284,27 @@ function createApiError({
   data,
 }) {
   const error = new Error(
-    message || "AI javobida xatolik"
+    message ||
+      "AI javobida xatolik"
   );
 
   error.code =
-    code || "AI_REQUEST_FAILED";
+    code ||
+    "AI_REQUEST_FAILED";
 
   error.status =
     Number(status) || 500;
 
-  error.data = data || null;
+  error.data =
+    data || null;
 
   return error;
 }
 
-function getErrorMessage(data, fallback) {
+function getErrorMessage(
+  data,
+  fallback
+) {
   return (
     data?.error ||
     data?.message ||
@@ -175,39 +322,55 @@ export async function askAI(
   conversationId = null,
   modelKey = "GEMINI",
   documentContext = "",
+  images = [],
   options = {}
 ) {
   const {
     signal,
+    webSearch = false,
   } = options;
 
-  const requestBody = createRequestBody({
-    message,
-    conversationId,
-    modelKey,
-    documentContext,
-  });
+  const requestBody =
+    createRequestBody({
+      message,
+      conversationId,
+      modelKey,
+      documentContext,
+      images,
+      webSearch,
+    });
 
   let response;
 
   try {
-    response = await fetch(CHAT_API_URL, {
-      method: "POST",
+    response = await fetch(
+      CHAT_API_URL,
+      {
+        method: "POST",
 
-      headers: createRequestHeaders(),
+        headers:
+          createRequestHeaders(),
 
-      body: JSON.stringify(requestBody),
+        body:
+          JSON.stringify(
+            requestBody
+          ),
 
-      signal,
-    });
+        signal,
+      }
+    );
   } catch (error) {
     if (
-      error?.name === "AbortError"
+      error?.name ===
+      "AbortError"
     ) {
       throw createApiError({
         message:
           "AI javobini yaratish to‘xtatildi",
-        code: "AI_REQUEST_ABORTED",
+
+        code:
+          "AI_REQUEST_ABORTED",
+
         status: 499,
       });
     }
@@ -215,28 +378,35 @@ export async function askAI(
     throw createApiError({
       message:
         "Server bilan bog‘lanib bo‘lmadi. Backend ishlayotganini tekshiring.",
-      code: "NETWORK_ERROR",
+
+      code:
+        "NETWORK_ERROR",
+
       status: 503,
+
       data: error,
     });
   }
 
-  const data = await parseJsonSafely(
-    response
-  );
+  const data =
+    await parseJsonSafely(
+      response
+    );
 
   if (!response.ok) {
     throw createApiError({
-      message: getErrorMessage(
-        data,
-        "AI javobida xatolik"
-      ),
+      message:
+        getErrorMessage(
+          data,
+          "AI javobida xatolik"
+        ),
 
       code:
         data?.code ||
         "AI_REQUEST_FAILED",
 
-      status: response.status,
+      status:
+        response.status,
 
       data,
     });
@@ -250,41 +420,60 @@ export async function askAI(
 ========================================================= */
 
 function parseSseBlock(block) {
-  const lines = block.split(/\r?\n/);
+  const lines =
+    block.split(/\r?\n/);
 
   let eventName = "message";
+
   const dataLines = [];
 
   for (const line of lines) {
-    if (!line || line.startsWith(":")) {
+    if (
+      !line ||
+      line.startsWith(":")
+    ) {
       continue;
     }
 
-    if (line.startsWith("event:")) {
+    if (
+      line.startsWith("event:")
+    ) {
       eventName = line
-        .slice("event:".length)
+        .slice(
+          "event:".length
+        )
         .trim();
 
       continue;
     }
 
-    if (line.startsWith("data:")) {
+    if (
+      line.startsWith("data:")
+    ) {
       dataLines.push(
-        line.slice("data:".length).trimStart()
+        line
+          .slice(
+            "data:".length
+          )
+          .trimStart()
       );
     }
   }
 
-  if (dataLines.length === 0) {
+  if (
+    dataLines.length === 0
+  ) {
     return null;
   }
 
-  const rawData = dataLines.join("\n");
+  const rawData =
+    dataLines.join("\n");
 
   let data;
 
   try {
-    data = JSON.parse(rawData);
+    data =
+      JSON.parse(rawData);
   } catch {
     data = {
       raw: rawData,
@@ -296,7 +485,6 @@ function parseSseBlock(block) {
     data,
   };
 }
-
 /* =========================================================
    STREAMING CHAT
 ========================================================= */
@@ -306,6 +494,7 @@ export async function askAIStream(
   conversationId = null,
   modelKey = "GEMINI",
   documentContext = "",
+  images = [],
   options = {}
 ) {
   const {
@@ -315,14 +504,18 @@ export async function askAIStream(
     onToken,
     onComplete,
     onError,
+    webSearch = false,
   } = options;
 
-  const requestBody = createRequestBody({
-    message,
-    conversationId,
-    modelKey,
-    documentContext,
-  });
+  const requestBody =
+    createRequestBody({
+      message,
+      conversationId,
+      modelKey,
+      documentContext,
+      images,
+      webSearch,
+    });
 
   let response;
 
@@ -334,40 +527,60 @@ export async function askAIStream(
 
         headers: {
           ...createRequestHeaders(),
-          Accept: "text/event-stream",
+
+          Accept:
+            "text/event-stream",
         },
 
-        body: JSON.stringify(requestBody),
+        body:
+          JSON.stringify(
+            requestBody
+          ),
 
         signal,
       }
     );
   } catch (error) {
     const normalizedError =
-      error?.name === "AbortError"
+      error?.name ===
+      "AbortError"
         ? createApiError({
             message:
               "AI javobini yaratish to‘xtatildi",
-            code: "AI_REQUEST_ABORTED",
+
+            code:
+              "AI_REQUEST_ABORTED",
+
             status: 499,
           })
         : createApiError({
             message:
               "Streaming server bilan bog‘lanib bo‘lmadi.",
-            code: "STREAM_NETWORK_ERROR",
+
+            code:
+              "STREAM_NETWORK_ERROR",
+
             status: 503,
+
             data: error,
           });
 
-    if (typeof onError === "function") {
-      await onError(normalizedError);
+    if (
+      typeof onError ===
+      "function"
+    ) {
+      await onError(
+        normalizedError
+      );
     }
 
     throw normalizedError;
   }
 
   const contentType =
-    response.headers.get("content-type") || "";
+    response.headers.get(
+      "content-type"
+    ) || "";
 
   if (
     !response.ok ||
@@ -375,26 +588,33 @@ export async function askAIStream(
       "text/event-stream"
     )
   ) {
-    const data = await parseJsonSafely(
-      response
-    );
+    const data =
+      await parseJsonSafely(
+        response
+      );
 
-    const error = createApiError({
-      message: getErrorMessage(
+    const error =
+      createApiError({
+        message:
+          getErrorMessage(
+            data,
+            "Streaming so‘rovida xatolik"
+          ),
+
+        code:
+          data?.code ||
+          "STREAM_REQUEST_FAILED",
+
+        status:
+          response.status,
+
         data,
-        "Streaming so‘rovida xatolik"
-      ),
+      });
 
-      code:
-        data?.code ||
-        "STREAM_REQUEST_FAILED",
-
-      status: response.status,
-
-      data,
-    });
-
-    if (typeof onError === "function") {
+    if (
+      typeof onError ===
+      "function"
+    ) {
       await onError(error);
     }
 
@@ -402,14 +622,21 @@ export async function askAIStream(
   }
 
   if (!response.body) {
-    const error = createApiError({
-      message:
-        "Brauzer streaming javobini o‘qiy olmadi",
-      code: "STREAM_BODY_MISSING",
-      status: 500,
-    });
+    const error =
+      createApiError({
+        message:
+          "Brauzer streaming javobini o‘qiy olmadi",
 
-    if (typeof onError === "function") {
+        code:
+          "STREAM_BODY_MISSING",
+
+        status: 500,
+      });
+
+    if (
+      typeof onError ===
+      "function"
+    ) {
       await onError(error);
     }
 
@@ -420,7 +647,9 @@ export async function askAIStream(
     response.body.getReader();
 
   const decoder =
-    new TextDecoder("utf-8");
+    new TextDecoder(
+      "utf-8"
+    );
 
   let buffer = "";
   let fullReply = "";
@@ -439,19 +668,29 @@ export async function askAIStream(
         break;
       }
 
-      buffer += decoder.decode(value, {
-        stream: true,
-      });
+      buffer +=
+        decoder.decode(
+          value,
+          {
+            stream: true,
+          }
+        );
 
-      const blocks = buffer.split(
-        /\r?\n\r?\n/
-      );
+      const blocks =
+        buffer.split(
+          /\r?\n\r?\n/
+        );
 
-      buffer = blocks.pop() || "";
+      buffer =
+        blocks.pop() || "";
 
-      for (const block of blocks) {
+      for (
+        const block of blocks
+      ) {
         const parsedEvent =
-          parseSseBlock(block);
+          parseSseBlock(
+            block
+          );
 
         if (!parsedEvent) {
           continue;
@@ -462,33 +701,46 @@ export async function askAIStream(
           data,
         } = parsedEvent;
 
-        if (event === "start") {
+        if (
+          event === "start"
+        ) {
           startData = data;
 
           if (
-            typeof onStart === "function"
+            typeof onStart ===
+            "function"
           ) {
-            await onStart(data);
+            await onStart(
+              data
+            );
           }
 
           continue;
         }
 
-        if (event === "model") {
+        if (
+          event === "model"
+        ) {
           modelData = data;
 
           if (
-            typeof onModel === "function"
+            typeof onModel ===
+            "function"
           ) {
-            await onModel(data);
+            await onModel(
+              data
+            );
           }
 
           continue;
         }
 
-        if (event === "token") {
+        if (
+          event === "token"
+        ) {
           const token =
-            typeof data?.token === "string"
+            typeof data?.token ===
+            "string"
               ? data.token
               : "";
 
@@ -499,67 +751,108 @@ export async function askAIStream(
           fullReply += token;
 
           if (
-            typeof onToken === "function"
+            typeof onToken ===
+            "function"
           ) {
-            await onToken(token, {
-              fullReply,
-              start: startData,
-              model: modelData,
-            });
+            await onToken(
+              token,
+              {
+                fullReply,
+
+                start:
+                  startData,
+
+                model:
+                  modelData,
+
+                sources:
+                  data?.sources ||
+                  [],
+              }
+            );
           }
 
           continue;
         }
 
-        if (event === "complete") {
+        if (
+          event ===
+          "complete"
+        ) {
           completeData = data;
 
           if (
-            typeof data?.reply === "string"
+            typeof data?.reply ===
+            "string"
           ) {
-            fullReply = data.reply;
+            fullReply =
+              data.reply;
           }
 
           if (
             typeof onComplete ===
             "function"
           ) {
-            await onComplete(data, {
-              fullReply,
-              start: startData,
-              model: modelData,
-            });
+            await onComplete(
+              data,
+              {
+                fullReply,
+
+                start:
+                  startData,
+
+                model:
+                  modelData,
+
+                sources:
+                  data?.sources ||
+                  [],
+              }
+            );
           }
 
           continue;
         }
 
-        if (event === "error") {
+        if (
+          event === "error"
+        ) {
           const error =
             createApiError({
-              message: getErrorMessage(
-                data,
-                "Streaming javobida xatolik"
-              ),
+              message:
+                getErrorMessage(
+                  data,
+                  "Streaming javobida xatolik"
+                ),
 
               code:
                 data?.code ||
                 "STREAM_RESPONSE_ERROR",
 
               status:
-                data?.status || 500,
+                data?.status ||
+                500,
 
               data,
             });
 
           if (
-            typeof onError === "function"
+            typeof onError ===
+            "function"
           ) {
-            await onError(error, {
-              partialReply:
-                data?.partialReply ||
-                fullReply,
-            });
+            await onError(
+              error,
+              {
+                partialReply:
+                  data
+                    ?.partialReply ||
+                  fullReply,
+
+                sources:
+                  data?.sources ||
+                  [],
+              }
+            );
           }
 
           throw error;
@@ -567,11 +860,14 @@ export async function askAIStream(
       }
     }
 
-    buffer += decoder.decode();
+    buffer +=
+      decoder.decode();
 
     if (buffer.trim()) {
       const parsedEvent =
-        parseSseBlock(buffer);
+        parseSseBlock(
+          buffer
+        );
 
       if (
         parsedEvent?.event ===
@@ -582,37 +878,51 @@ export async function askAIStream(
           parsedEvent.data;
 
         if (
-          typeof completeData?.reply ===
-          "string"
+          typeof completeData
+            ?.reply === "string"
         ) {
           fullReply =
             completeData.reply;
         }
 
         if (
-          typeof onComplete === "function"
+          typeof onComplete ===
+          "function"
         ) {
           await onComplete(
             completeData,
             {
               fullReply,
-              start: startData,
-              model: modelData,
+
+              start:
+                startData,
+
+              model:
+                modelData,
+
+              sources:
+                completeData
+                  ?.sources ||
+                [],
             }
           );
         }
       }
     }
-
-    if (!completeData) {
+        if (!completeData) {
       if (signal?.aborted) {
         throw createApiError({
           message:
             "AI javobini yaratish to‘xtatildi",
-          code: "AI_REQUEST_ABORTED",
+
+          code:
+            "AI_REQUEST_ABORTED",
+
           status: 499,
+
           data: {
-            partialReply: fullReply,
+            partialReply:
+              fullReply,
           },
         });
       }
@@ -620,10 +930,15 @@ export async function askAIStream(
       throw createApiError({
         message:
           "Streaming javobi to‘liq yakunlanmadi",
-        code: "STREAM_INCOMPLETE",
+
+        code:
+          "STREAM_INCOMPLETE",
+
         status: 502,
+
         data: {
-          partialReply: fullReply,
+          partialReply:
+            fullReply,
         },
       });
     }
@@ -635,39 +950,66 @@ export async function askAIStream(
         completeData.reply ||
         fullReply,
 
-      streamedReply: fullReply,
+      streamedReply:
+        fullReply,
 
-      start: startData,
+      start:
+        startData,
 
-      modelEvent: modelData,
+      modelEvent:
+        modelData,
+
+      sources:
+        Array.isArray(
+          completeData?.sources
+        )
+          ? completeData.sources
+          : [],
     };
   } catch (error) {
-    let normalizedError = error;
+    let normalizedError =
+      error;
 
     if (
-      error?.name === "AbortError" ||
+      error?.name ===
+        "AbortError" ||
       signal?.aborted
     ) {
       normalizedError =
         createApiError({
           message:
             "AI javobini yaratish to‘xtatildi",
-          code: "AI_REQUEST_ABORTED",
+
+          code:
+            "AI_REQUEST_ABORTED",
+
           status: 499,
+
           data: {
-            partialReply: fullReply,
+            partialReply:
+              fullReply,
           },
         });
     }
 
     if (
-      typeof onError === "function" &&
+      typeof onError ===
+        "function" &&
       normalizedError?.code !==
         "STREAM_RESPONSE_ERROR"
     ) {
-      await onError(normalizedError, {
-        partialReply: fullReply,
-      });
+      await onError(
+        normalizedError,
+        {
+          partialReply:
+            fullReply,
+
+          sources:
+            normalizedError
+              ?.data?.sources ||
+            [],
+        }
+      );
     }
 
     throw normalizedError;
@@ -694,8 +1036,13 @@ export function createAIAbortController() {
 
 export function getAIEndpoints() {
   return {
-    baseUrl: API_BASE_URL,
-    chatUrl: CHAT_API_URL,
-    streamUrl: CHAT_STREAM_API_URL,
+    baseUrl:
+      API_BASE_URL,
+
+    chatUrl:
+      CHAT_API_URL,
+
+    streamUrl:
+      CHAT_STREAM_API_URL,
   };
 }
