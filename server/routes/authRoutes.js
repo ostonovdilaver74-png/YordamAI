@@ -7,12 +7,17 @@ const { protect } = require("../middleware/authMiddleware");
 const router = express.Router();
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "7d",
-  });
+  return jwt.sign(
+    { id },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "7d",
+    }
+  );
 };
 
-// REGISTER
+// ===================== REGISTER =====================
+
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -68,7 +73,8 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// LOGIN
+// ===================== LOGIN =====================
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -81,9 +87,10 @@ router.post("/login", async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
+    // password ni ham olib kelamiz
     const user = await User.findOne({
       email: normalizedEmail,
-    });
+    }).select("+password");
 
     if (!user) {
       return res.status(400).json({
@@ -91,13 +98,19 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
 
     if (!isMatch) {
       return res.status(400).json({
         message: "Email yoki parol noto‘g‘ri",
       });
     }
+
+    user.lastLoginAt = new Date();
+    await user.save();
 
     return res.json({
       message: "Kirish muvaffaqiyatli",
@@ -118,7 +131,8 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// CURRENT USER
+// ===================== CURRENT USER =====================
+
 router.get("/me", protect, async (req, res) => {
   return res.json({
     user: req.user,
