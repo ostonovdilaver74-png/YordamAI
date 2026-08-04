@@ -1,5 +1,5 @@
 const PDF_API_URL =
-  "http://localhost:5000/api/pdf/extract";
+"https://yordamai-production.up.railway.app/api/pdf/extract" 
 
 function getToken() {
   return localStorage.getItem("yordamai_token");

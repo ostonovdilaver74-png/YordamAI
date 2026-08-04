@@ -1,5 +1,5 @@
 const DEFAULT_API_BASE_URL =
-  "http://localhost:5000/api";
+ "https://yordamai-production.up.railway.app/api"
 
 const API_BASE_URL = String(
   import.meta.env.VITE_API_URL ||
