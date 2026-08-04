@@ -60,6 +60,16 @@ async function saveMemory({
     );
   }
 
+  const safeImportance = Math.min(
+    Math.max(Number(importance) || 5, 1),
+    10
+  );
+
+  const safeConfidence = Math.min(
+    Math.max(Number(confidence) || 1, 0),
+    1
+  );
+
   const memory = await Memory.findOneAndUpdate(
     {
       user: userId,
@@ -71,15 +81,13 @@ async function saveMemory({
         value: cleanValue,
         sourceConversation,
         sourceMessage,
-        importance: Math.min(
-          Math.max(Number(importance) || 5, 1),
-          10
-        ),
-        confidence: Math.min(
-          Math.max(Number(confidence) || 1, 0),
-          1
-        ),
+        importance: safeImportance,
+        confidence: safeConfidence,
         isActive: true,
+      },
+      $setOnInsert: {
+        user: userId,
+        key: cleanKey,
       },
     },
     {
