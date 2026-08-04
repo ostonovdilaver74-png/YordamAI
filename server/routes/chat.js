@@ -856,6 +856,37 @@ async function getMemoryContext(
       ),
   };
 }
+function addMemoryToMessages(
+  messages = [],
+  memoryContext = ""
+) {
+  const cleanMemoryContext =
+    normalizeText(memoryContext);
+
+  if (!cleanMemoryContext) {
+    return messages;
+  }
+
+  return [
+    {
+      role: "user",
+      content: `
+Quyidagi ma’lumotlar foydalanuvchi haqida oldingi suhbatlardan saqlangan xotiradir.
+
+--- XOTIRA BOSHLANISHI ---
+
+${cleanMemoryContext}
+
+--- XOTIRA TUGASHI ---
+
+Xotiradan faqat joriy savolga tegishli bo‘lsa foydalan.
+Joriy suhbat xotiraga zid bo‘lsa, joriy suhbatni ustun qo‘y.
+Bu xabarga alohida javob yozma.
+      `.trim(),
+    },
+    ...messages,
+  ];
+}
 
 async function markLoadedMemoriesAsUsed(
   memories = []
@@ -1078,31 +1109,35 @@ router.post(
             userMessage._id,
         });
 
-      const previousMessages =
-        await getConversationMessages(
-          conversation._id
-        );
+     const previousMessages =
+  await getConversationMessages(
+    conversation._id
+  );
 
-      const {
-        memories,
-        memoryContext,
-      } =
-        await getMemoryContext(
-          user._id
-        );
+const {
+  memories,
+  memoryContext,
+} =
+  await getMemoryContext(
+    user._id
+  );
 
-      const aiResult =
-        await generateAIReply(
-          previousMessages,
-          modelKey,
-          documentContext,
-          {
-            images,
-            webSearch,
-            memoryContext,
-          }
-        );
+const aiMessages =
+  addMemoryToMessages(
+    previousMessages,
+    memoryContext
+  );
 
+const aiResult =
+  await generateAIReply(
+    aiMessages,
+    modelKey,
+    documentContext,
+    {
+      images,
+      webSearch,
+    }
+  );
       const assistantMessage =
         await Message.create({
           conversation:
