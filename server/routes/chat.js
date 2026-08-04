@@ -20,6 +20,10 @@ const {
   markMemoriesAsUsed,
 } = require("../services/memoryService");
 
+const {
+  extractAndSaveMemories,
+} = require("../services/autoMemoryService");
+
 const router = express.Router();
 
 const FREE_DAILY_LIMIT =
@@ -353,6 +357,7 @@ function isDifferentDay(
     getDateKey(secondDate)
   );
 }
+
 /* =========================================================
    ERROR HELPERS
 ========================================================= */
@@ -360,11 +365,13 @@ function isDifferentDay(
 function getErrorStatus(error) {
   const statusCode = Number(
     error?.statusCode ||
-      error?.status
+    error?.status
   );
 
   if (
-    Number.isInteger(statusCode) &&
+    Number.isInteger(
+      statusCode
+    ) &&
     statusCode >= 400 &&
     statusCode <= 599
   ) {
@@ -381,7 +388,8 @@ function getClientErrorMessage(
     getErrorStatus(error);
 
   if (
-    error?.name === "AbortError" ||
+    error?.name ===
+      "AbortError" ||
     error?.code ===
       "AI_REQUEST_ABORTED"
   ) {
@@ -483,7 +491,6 @@ function logChatError(
     }
   );
 }
-
 /* =========================================================
    SSE FUNKSIYALARI
 ========================================================= */
@@ -556,7 +563,9 @@ async function getActiveUser(
   userId
 ) {
   const user =
-    await User.findById(userId);
+    await User.findById(
+      userId
+    );
 
   if (!user) {
     const error = new Error(
@@ -708,6 +717,7 @@ async function incrementDailyUsage(
     user
   );
 }
+
 /* =========================================================
    CONVERSATION VA MESSAGE
 ========================================================= */
@@ -723,9 +733,10 @@ async function resolveConversation({
         conversationId
       )
     ) {
-      const error = new Error(
-        "Chat ID formati noto‘g‘ri"
-      );
+      const error =
+        new Error(
+          "Chat ID formati noto‘g‘ri"
+        );
 
       error.statusCode = 400;
       error.code =
@@ -736,14 +747,18 @@ async function resolveConversation({
 
     const conversation =
       await Conversation.findOne({
-        _id: conversationId,
-        user: userId,
+        _id:
+          conversationId,
+
+        user:
+          userId,
       });
 
     if (!conversation) {
-      const error = new Error(
-        "Chat topilmadi"
-      );
+      const error =
+        new Error(
+          "Chat topilmadi"
+        );
 
       error.statusCode = 404;
       error.code =
@@ -754,13 +769,16 @@ async function resolveConversation({
 
     return {
       conversation,
-      isNewConversation: false,
+      isNewConversation:
+        false,
     };
   }
 
   const conversation =
     await Conversation.create({
-      user: userId,
+      user:
+        userId,
+
       title:
         createConversationTitle(
           message
@@ -769,7 +787,8 @@ async function resolveConversation({
 
   return {
     conversation,
-    isNewConversation: true,
+    isNewConversation:
+      true,
   };
 }
 
@@ -874,10 +893,6 @@ async function markLoadedMemoriesAsUsed(
   }
 }
 
-/* =========================================================
-   FAILED REQUEST CLEANUP
-========================================================= */
-
 async function cleanupFailedRequest({
   userMessageId,
   conversationId,
@@ -886,7 +901,8 @@ async function cleanupFailedRequest({
   try {
     if (userMessageId) {
       await Message.deleteOne({
-        _id: userMessageId,
+        _id:
+          userMessageId,
       });
     }
 
@@ -904,7 +920,8 @@ async function cleanupFailedRequest({
         remainingMessages === 0
       ) {
         await Conversation.deleteOne({
-          _id: conversationId,
+          _id:
+            conversationId,
         });
       }
     }
@@ -915,7 +932,6 @@ async function cleanupFailedRequest({
     );
   }
 }
-
 /* =========================================================
    SO‘ROVNI VALIDATSIYA QILISH
 ========================================================= */
@@ -937,9 +953,10 @@ function normalizeChatRequest(
     !cleanMessage &&
     images.length === 0
   ) {
-    const error = new Error(
-      "Xabar yozilishi yoki rasm yuklanishi kerak"
-    );
+    const error =
+      new Error(
+        "Xabar yozilishi yoki rasm yuklanishi kerak"
+      );
 
     error.statusCode = 400;
     error.code =
@@ -975,6 +992,7 @@ function normalizeChatRequest(
       ),
   };
 }
+
 /* =========================================================
    ODDIY JSON CHAT
    POST /api/chat
@@ -996,9 +1014,10 @@ router.post(
         documentContext,
         images,
         webSearch,
-      } = normalizeChatRequest(
-        req.body
-      );
+      } =
+        normalizeChatRequest(
+          req.body
+        );
 
       const user =
         await getActiveUser(
@@ -1016,8 +1035,10 @@ router.post(
       const resolved =
         await resolveConversation({
           conversationId,
+
           userId:
             user._id,
+
           message,
         });
 
@@ -1041,6 +1062,20 @@ router.post(
 
           content:
             message,
+        });
+
+      const savedMemories =
+        await extractAndSaveMemories({
+          userId:
+            user._id,
+
+          message,
+
+          conversationId:
+            conversation._id,
+
+          messageId:
+            userMessage._id,
         });
 
       const previousMessages =
@@ -1195,6 +1230,9 @@ router.post(
             loaded:
               memories.length,
 
+            saved:
+              savedMemories.length,
+
             used:
               memories.length > 0,
           },
@@ -1269,6 +1307,7 @@ router.post(
 
     let memories = [];
     let memoryContext = "";
+    let savedMemories = [];
 
     let isNewConversation = false;
     let streamCompleted = false;
@@ -1298,9 +1337,10 @@ router.post(
         documentContext,
         images,
         webSearch,
-      } = normalizeChatRequest(
-        req.body
-      );
+      } =
+        normalizeChatRequest(
+          req.body
+        );
 
       console.log(
         "CHAT STREAM REQUEST:",
@@ -1333,8 +1373,10 @@ router.post(
       const resolved =
         await resolveConversation({
           conversationId,
+
           userId:
             user._id,
+
           message,
         });
 
@@ -1359,6 +1401,20 @@ router.post(
 
           content:
             message,
+        });
+
+      savedMemories =
+        await extractAndSaveMemories({
+          userId:
+            user._id,
+
+          message,
+
+          conversationId:
+            conversation._id,
+
+          messageId:
+            userMessage._id,
         });
 
       const previousMessages =
@@ -1393,7 +1449,6 @@ router.post(
 
           ai: {
             modelKey,
-
             webSearchUsed:
               Boolean(
                 webSearch
@@ -1432,6 +1487,9 @@ router.post(
           memory: {
             loaded:
               memories.length,
+
+            saved:
+              savedMemories.length,
 
             used:
               memories.length > 0,
@@ -1529,17 +1587,17 @@ router.post(
             streamEvent;
         }
       }
-
-      const cleanReply =
+            const cleanReply =
         normalizeText(
           finalAiResult?.reply ||
             fullReply
         );
 
       if (!cleanReply) {
-        const error = new Error(
-          "AI modeli bo‘sh streaming javob qaytardi"
-        );
+        const error =
+          new Error(
+            "AI modeli bo‘sh streaming javob qaytardi"
+          );
 
         error.statusCode = 502;
         error.code =
@@ -1680,6 +1738,9 @@ router.post(
           memory: {
             loaded:
               memories.length,
+
+            saved:
+              savedMemories.length,
 
             used:
               memories.length > 0,
@@ -1834,6 +1895,9 @@ router.post(
             memory: {
               loaded:
                 memories.length,
+
+              saved:
+                savedMemories.length,
 
               used:
                 memories.length > 0,
