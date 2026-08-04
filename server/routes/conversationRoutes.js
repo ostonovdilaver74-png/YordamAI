@@ -1,61 +1,210 @@
 const express = require("express");
+const mongoose = require("mongoose");
+
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
-const { protect } = require("../middleware/authMiddleware");
+const {
+  protect,
+} = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-// Barcha chatlarni olish
+/* =========================================================
+   BARCHA CHATLARNI OLISH
+   GET /api/conversations
+========================================================= */
+
 router.get("/", protect, async (req, res) => {
-  const conversations = await Conversation.find({ user: req.user._id })
-    .sort({ updatedAt: -1 });
+  try {
+    const conversations =
+      await Conversation.find({
+        user: req.user._id,
+      })
+        .sort({
+          updatedAt: -1,
+        })
+        .lean();
 
-  res.json({ success: true, conversations });
+    return res.status(200).json({
+      success: true,
+      count: conversations.length,
+      conversations,
+    });
+  } catch (error) {
+    console.error(
+      "CHATLARNI OLISH XATOSI:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Chat tarixini olishda server xatosi",
+    });
+  }
 });
 
-// Yangi chat yaratish
+/* =========================================================
+   YANGI CHAT YARATISH
+   POST /api/conversations
+========================================================= */
+
 router.post("/", protect, async (req, res) => {
-  const conversation = await Conversation.create({
-    user: req.user._id,
-    title: "Yangi chat",
-  });
+  try {
+    const title =
+      typeof req.body?.title === "string" &&
+      req.body.title.trim()
+        ? req.body.title.trim().slice(0, 80)
+        : "Yangi chat";
 
-  res.status(201).json({ success: true, conversation });
-});
+    const conversation =
+      await Conversation.create({
+        user: req.user._id,
+        title,
+      });
 
-// Bitta chat xabarlarini olish
-router.get("/:id/messages", protect, async (req, res) => {
-  const conversation = await Conversation.findOne({
-    _id: req.params.id,
-    user: req.user._id,
-  });
+    return res.status(201).json({
+      success: true,
+      message: "Yangi chat yaratildi",
+      conversation,
+    });
+  } catch (error) {
+    console.error(
+      "YANGI CHAT YARATISH XATOSI:",
+      error
+    );
 
-  if (!conversation) {
-    return res.status(404).json({ message: "Chat topilmadi" });
+    return res.status(500).json({
+      success: false,
+      message:
+        "Yangi chat yaratishda server xatosi",
+    });
   }
-
-  const messages = await Message.find({
-    conversation: req.params.id,
-  }).sort({ createdAt: 1 });
-
-  res.json({ success: true, conversation, messages });
 });
 
-// Chatni o‘chirish
-router.delete("/:id", protect, async (req, res) => {
-  const conversation = await Conversation.findOne({
-    _id: req.params.id,
-    user: req.user._id,
-  });
+/* =========================================================
+   BITTA CHAT VA XABARLARINI OLISH
+   GET /api/conversations/:id/messages
+========================================================= */
 
-  if (!conversation) {
-    return res.status(404).json({ message: "Chat topilmadi" });
+router.get(
+  "/:id/messages",
+  protect,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (
+        !mongoose.Types.ObjectId.isValid(id)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Chat ID formati noto‘g‘ri",
+        });
+      }
+
+      const conversation =
+        await Conversation.findOne({
+          _id: id,
+          user: req.user._id,
+        }).lean();
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          message: "Chat topilmadi",
+        });
+      }
+
+      const messages = await Message.find({
+        conversation: id,
+      })
+        .sort({
+          createdAt: 1,
+        })
+        .lean();
+
+      return res.status(200).json({
+        success: true,
+        conversation,
+        messages,
+      });
+    } catch (error) {
+      console.error(
+        "CHATNI OCHISH XATOSI:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Chat xabarlarini olishda server xatosi",
+      });
+    }
   }
+);
 
-  await Message.deleteMany({ conversation: req.params.id });
-  await Conversation.deleteOne({ _id: req.params.id });
+/* =========================================================
+   CHATNI O‘CHIRISH
+   DELETE /api/conversations/:id
+========================================================= */
 
-  res.json({ success: true, message: "Chat o‘chirildi" });
-});
+router.delete(
+  "/:id",
+  protect,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (
+        !mongoose.Types.ObjectId.isValid(id)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Chat ID formati noto‘g‘ri",
+        });
+      }
+
+      const conversation =
+        await Conversation.findOne({
+          _id: id,
+          user: req.user._id,
+        });
+
+      if (!conversation) {
+        return res.status(404).json({
+          success: false,
+          message: "Chat topilmadi",
+        });
+      }
+
+      await Message.deleteMany({
+        conversation: id,
+      });
+
+      await Conversation.deleteOne({
+        _id: id,
+        user: req.user._id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Chat o‘chirildi",
+        conversationId: id,
+      });
+    } catch (error) {
+      console.error(
+        "CHATNI O‘CHIRISH XATOSI:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "Chatni o‘chirishda server xatosi",
+      });
+    }
+  }
+);
 
 module.exports = router;
