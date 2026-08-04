@@ -14,6 +14,12 @@ const {
   streamAIReply,
 } = require("../services/openaiService");
 
+const {
+  getUserMemories,
+  formatMemoriesForPrompt,
+  markMemoriesAsUsed,
+} = require("../services/memoryService");
+
 const router = express.Router();
 
 const FREE_DAILY_LIMIT =
@@ -347,7 +353,6 @@ function isDifferentDay(
     getDateKey(secondDate)
   );
 }
-
 /* =========================================================
    ERROR HELPERS
 ========================================================= */
@@ -355,13 +360,11 @@ function isDifferentDay(
 function getErrorStatus(error) {
   const statusCode = Number(
     error?.statusCode ||
-    error?.status
+      error?.status
   );
 
   if (
-    Number.isInteger(
-      statusCode
-    ) &&
+    Number.isInteger(statusCode) &&
     statusCode >= 400 &&
     statusCode <= 599
   ) {
@@ -378,8 +381,7 @@ function getClientErrorMessage(
     getErrorStatus(error);
 
   if (
-    error?.name ===
-      "AbortError" ||
+    error?.name === "AbortError" ||
     error?.code ===
       "AI_REQUEST_ABORTED"
   ) {
@@ -481,6 +483,7 @@ function logChatError(
     }
   );
 }
+
 /* =========================================================
    SSE FUNKSIYALARI
 ========================================================= */
@@ -553,9 +556,7 @@ async function getActiveUser(
   userId
 ) {
   const user =
-    await User.findById(
-      userId
-    );
+    await User.findById(userId);
 
   if (!user) {
     const error = new Error(
@@ -707,7 +708,6 @@ async function incrementDailyUsage(
     user
   );
 }
-
 /* =========================================================
    CONVERSATION VA MESSAGE
 ========================================================= */
@@ -723,10 +723,9 @@ async function resolveConversation({
         conversationId
       )
     ) {
-      const error =
-        new Error(
-          "Chat ID formati noto‘g‘ri"
-        );
+      const error = new Error(
+        "Chat ID formati noto‘g‘ri"
+      );
 
       error.statusCode = 400;
       error.code =
@@ -737,18 +736,14 @@ async function resolveConversation({
 
     const conversation =
       await Conversation.findOne({
-        _id:
-          conversationId,
-
-        user:
-          userId,
+        _id: conversationId,
+        user: userId,
       });
 
     if (!conversation) {
-      const error =
-        new Error(
-          "Chat topilmadi"
-        );
+      const error = new Error(
+        "Chat topilmadi"
+      );
 
       error.statusCode = 404;
       error.code =
@@ -759,16 +754,13 @@ async function resolveConversation({
 
     return {
       conversation,
-      isNewConversation:
-        false,
+      isNewConversation: false,
     };
   }
 
   const conversation =
     await Conversation.create({
-      user:
-        userId,
-
+      user: userId,
       title:
         createConversationTitle(
           message
@@ -777,8 +769,7 @@ async function resolveConversation({
 
   return {
     conversation,
-    isNewConversation:
-      true,
+    isNewConversation: true,
   };
 }
 
@@ -825,6 +816,68 @@ async function getConversationMessages(
     .lean();
 }
 
+/* =========================================================
+   MEMORY
+========================================================= */
+
+async function getMemoryContext(
+  userId
+) {
+  const memories =
+    await getUserMemories(
+      userId,
+      20
+    );
+
+  return {
+    memories,
+    memoryContext:
+      formatMemoriesForPrompt(
+        memories
+      ),
+  };
+}
+
+async function markLoadedMemoriesAsUsed(
+  memories = []
+) {
+  if (
+    !Array.isArray(memories) ||
+    memories.length === 0
+  ) {
+    return;
+  }
+
+  const memoryIds =
+    memories
+      .map(
+        (memory) =>
+          memory?._id
+      )
+      .filter(Boolean);
+
+  if (
+    memoryIds.length === 0
+  ) {
+    return;
+  }
+
+  try {
+    await markMemoriesAsUsed(
+      memoryIds
+    );
+  } catch (error) {
+    console.error(
+      "Memory usage yangilash xatosi:",
+      error
+    );
+  }
+}
+
+/* =========================================================
+   FAILED REQUEST CLEANUP
+========================================================= */
+
 async function cleanupFailedRequest({
   userMessageId,
   conversationId,
@@ -833,8 +886,7 @@ async function cleanupFailedRequest({
   try {
     if (userMessageId) {
       await Message.deleteOne({
-        _id:
-          userMessageId,
+        _id: userMessageId,
       });
     }
 
@@ -852,8 +904,7 @@ async function cleanupFailedRequest({
         remainingMessages === 0
       ) {
         await Conversation.deleteOne({
-          _id:
-            conversationId,
+          _id: conversationId,
         });
       }
     }
@@ -864,6 +915,7 @@ async function cleanupFailedRequest({
     );
   }
 }
+
 /* =========================================================
    SO‘ROVNI VALIDATSIYA QILISH
 ========================================================= */
@@ -885,10 +937,9 @@ function normalizeChatRequest(
     !cleanMessage &&
     images.length === 0
   ) {
-    const error =
-      new Error(
-        "Xabar yozilishi yoki rasm yuklanishi kerak"
-      );
+    const error = new Error(
+      "Xabar yozilishi yoki rasm yuklanishi kerak"
+    );
 
     error.statusCode = 400;
     error.code =
@@ -924,7 +975,6 @@ function normalizeChatRequest(
       ),
   };
 }
-
 /* =========================================================
    ODDIY JSON CHAT
    POST /api/chat
@@ -946,10 +996,9 @@ router.post(
         documentContext,
         images,
         webSearch,
-      } =
-        normalizeChatRequest(
-          req.body
-        );
+      } = normalizeChatRequest(
+        req.body
+      );
 
       const user =
         await getActiveUser(
@@ -967,10 +1016,8 @@ router.post(
       const resolved =
         await resolveConversation({
           conversationId,
-
           userId:
             user._id,
-
           message,
         });
 
@@ -1001,6 +1048,14 @@ router.post(
           conversation._id
         );
 
+      const {
+        memories,
+        memoryContext,
+      } =
+        await getMemoryContext(
+          user._id
+        );
+
       const aiResult =
         await generateAIReply(
           previousMessages,
@@ -1009,6 +1064,7 @@ router.post(
           {
             images,
             webSearch,
+            memoryContext,
           }
         );
 
@@ -1028,6 +1084,10 @@ router.post(
         new Date();
 
       await conversation.save();
+
+      await markLoadedMemoriesAsUsed(
+        memories
+      );
 
       const usage =
         await incrementDailyUsage(
@@ -1131,6 +1191,14 @@ router.post(
                 : 0,
           },
 
+          memory: {
+            loaded:
+              memories.length,
+
+            used:
+              memories.length > 0,
+          },
+
           usage,
         });
     } catch (error) {
@@ -1199,6 +1267,9 @@ router.post(
     let assistantMessage = null;
     let user = null;
 
+    let memories = [];
+    let memoryContext = "";
+
     let isNewConversation = false;
     let streamCompleted = false;
     let clientDisconnected = false;
@@ -1227,10 +1298,9 @@ router.post(
         documentContext,
         images,
         webSearch,
-      } =
-        normalizeChatRequest(
-          req.body
-        );
+      } = normalizeChatRequest(
+        req.body
+      );
 
       console.log(
         "CHAT STREAM REQUEST:",
@@ -1263,10 +1333,8 @@ router.post(
       const resolved =
         await resolveConversation({
           conversationId,
-
           userId:
             user._id,
-
           message,
         });
 
@@ -1298,6 +1366,17 @@ router.post(
           conversation._id
         );
 
+      const memoryResult =
+        await getMemoryContext(
+          user._id
+        );
+
+      memories =
+        memoryResult.memories;
+
+      memoryContext =
+        memoryResult.memoryContext;
+
       configureSseResponse(
         res
       );
@@ -1314,6 +1393,7 @@ router.post(
 
           ai: {
             modelKey,
+
             webSearchUsed:
               Boolean(
                 webSearch
@@ -1349,6 +1429,14 @@ router.post(
             sourceCount: 0,
           },
 
+          memory: {
+            loaded:
+              memories.length,
+
+            used:
+              memories.length > 0,
+          },
+
           usage:
             getUsageInformation(
               user
@@ -1371,6 +1459,8 @@ router.post(
               images,
 
               webSearch,
+
+              memoryContext,
             }
           )
       ) {
@@ -1439,17 +1529,17 @@ router.post(
             streamEvent;
         }
       }
-            const cleanReply =
+
+      const cleanReply =
         normalizeText(
           finalAiResult?.reply ||
             fullReply
         );
 
       if (!cleanReply) {
-        const error =
-          new Error(
-            "AI modeli bo‘sh streaming javob qaytardi"
-          );
+        const error = new Error(
+          "AI modeli bo‘sh streaming javob qaytardi"
+        );
 
         error.statusCode = 502;
         error.code =
@@ -1481,6 +1571,10 @@ router.post(
         new Date();
 
       await conversation.save();
+
+      await markLoadedMemoriesAsUsed(
+        memories
+      );
 
       const usage =
         await incrementDailyUsage(
@@ -1583,6 +1677,14 @@ router.post(
               finalSources.length,
           },
 
+          memory: {
+            loaded:
+              memories.length,
+
+            used:
+              memories.length > 0,
+          },
+
           usage,
         }
       );
@@ -1625,6 +1727,10 @@ router.post(
             new Date();
 
           await conversation.save();
+
+          await markLoadedMemoriesAsUsed(
+            memories
+          );
 
           if (user) {
             await incrementDailyUsage(
@@ -1724,6 +1830,14 @@ router.post(
               ),
 
             sources: [],
+
+            memory: {
+              loaded:
+                memories.length,
+
+              used:
+                memories.length > 0,
+            },
 
             ...(error.usage
               ? {
