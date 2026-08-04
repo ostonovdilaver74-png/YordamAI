@@ -1,45 +1,92 @@
-const API_URL = "http://localhost:5000/api/conversations";
+const DEFAULT_API_BASE_URL = "http://localhost:5000/api";
 
-const getToken = () => localStorage.getItem("yordamai_token");
+const API_BASE_URL = String(
+  import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL
+)
+  .trim()
+  .replace(/\/+$/, "");
+
+const CONVERSATIONS_API_URL =
+  `${API_BASE_URL}/conversations`;
+
+const getToken = () => {
+  return localStorage.getItem("yordamai_token");
+};
+
+const createHeaders = () => {
+  const token = getToken();
+
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+const parseResponse = async (response) => {
+  const data = await response.json().catch(() => ({
+    message: "Serverdan noto‘g‘ri javob keldi",
+  }));
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ||
+        data.error ||
+        `Server xatosi: ${response.status}`
+    );
+  }
+
+  return data;
+};
 
 export const getConversations = async () => {
-  const res = await fetch(API_URL, {
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
-  });
+  const response = await fetch(
+    CONVERSATIONS_API_URL,
+    {
+      method: "GET",
+      headers: createHeaders(),
+    }
+  );
 
-  return res.json();
+  return parseResponse(response);
 };
 
-export const createConversation = async () => {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
-  });
+export const getConversationMessages = async (
+  conversationId
+) => {
+  const response = await fetch(
+    `${CONVERSATIONS_API_URL}/${conversationId}/messages`,
+    {
+      method: "GET",
+      headers: createHeaders(),
+    }
+  );
 
-  return res.json();
+  return parseResponse(response);
 };
 
-export const getConversationMessages = async (id) => {
-  const res = await fetch(`${API_URL}/${id}/messages`, {
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
-  });
+export const createConversation = async (data = {}) => {
+  const response = await fetch(
+    CONVERSATIONS_API_URL,
+    {
+      method: "POST",
+      headers: createHeaders(),
+      body: JSON.stringify(data),
+    }
+  );
 
-  return res.json();
+  return parseResponse(response);
 };
 
-export const deleteConversation = async (id) => {
-  const res = await fetch(`${API_URL}/${id}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${getToken()}`,
-    },
-  });
+export const deleteConversation = async (
+  conversationId
+) => {
+  const response = await fetch(
+    `${CONVERSATIONS_API_URL}/${conversationId}`,
+    {
+      method: "DELETE",
+      headers: createHeaders(),
+    }
+  );
 
-  return res.json();
+  return parseResponse(response);
 };
