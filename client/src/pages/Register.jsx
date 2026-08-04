@@ -13,58 +13,179 @@ function Register() {
   });
 
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setForm((previousForm) => ({
+      ...previousForm,
+      [name]: value,
+    }));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (submitting) {
+      return;
+    }
+
     setError("");
 
-    const result = await register(form);
+    const name = form.name.trim();
+    const email = form.email.trim().toLowerCase();
+    const password = form.password;
 
-    if (result.token) {
-      navigate("/");
-    } else {
-      setError(result.message || "Ro‘yxatdan o‘tishda xatolik");
+    if (!name || !email || !password) {
+      setError("Barcha maydonlarni to‘ldiring");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Parol kamida 6 ta belgidan iborat bo‘lsin");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const result = await register({
+        name,
+        email,
+        password,
+      });
+
+      if (result?.token) {
+        navigate("/", {
+          replace: true,
+        });
+        return;
+      }
+
+      setError(
+        result?.message ||
+          "Ro‘yxatdan o‘tishda xatolik yuz berdi"
+      );
+    } catch (requestError) {
+      console.error(
+        "REGISTER FRONTEND XATOSI:",
+        requestError
+      );
+
+      setError(
+        requestError?.message ||
+          "Server bilan bog‘lanishda xatolik yuz berdi"
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4">
-      <form onSubmit={handleSubmit} className="w-full max-w-md bg-white p-8 rounded-2xl shadow">
-        <h1 className="text-3xl font-bold mb-2 text-center">YordamAI</h1>
-        <p className="text-center text-slate-500 mb-6">Yangi hisob yarating</p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-100 px-4 py-8">
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-md rounded-2xl bg-white p-8 shadow"
+      >
+        <h1 className="mb-2 text-center text-3xl font-bold">
+          YordamAI
+        </h1>
 
-        {error && <div className="mb-4 bg-red-100 text-red-600 p-3 rounded-xl">{error}</div>}
+        <p className="mb-6 text-center text-slate-500">
+          Yangi hisob yarating
+        </p>
+
+        {error && (
+          <div
+            role="alert"
+            className="mb-4 rounded-xl bg-red-100 p-3 text-red-700"
+          >
+            {error}
+          </div>
+        )}
+
+        <label
+          htmlFor="register-name"
+          className="mb-2 block text-sm font-medium text-slate-700"
+        >
+          Ism
+        </label>
 
         <input
+          id="register-name"
+          name="name"
           type="text"
-          placeholder="Ism"
-          className="w-full mb-4 p-3 border rounded-xl"
+          autoComplete="name"
+          placeholder="Ismingiz"
+          className="mb-4 w-full rounded-xl border p-3 outline-none focus:border-blue-500"
           value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          onChange={handleChange}
+          disabled={submitting}
+          required
         />
 
+        <label
+          htmlFor="register-email"
+          className="mb-2 block text-sm font-medium text-slate-700"
+        >
+          Email
+        </label>
+
         <input
+          id="register-email"
+          name="email"
           type="email"
-          placeholder="Email"
-          className="w-full mb-4 p-3 border rounded-xl"
+          inputMode="email"
+          autoCapitalize="none"
+          autoComplete="email"
+          placeholder="email@example.com"
+          className="mb-4 w-full rounded-xl border p-3 outline-none focus:border-blue-500"
           value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          onChange={handleChange}
+          disabled={submitting}
+          required
         />
+
+        <label
+          htmlFor="register-password"
+          className="mb-2 block text-sm font-medium text-slate-700"
+        >
+          Parol
+        </label>
 
         <input
+          id="register-password"
+          name="password"
           type="password"
-          placeholder="Parol"
-          className="w-full mb-4 p-3 border rounded-xl"
+          autoComplete="new-password"
+          placeholder="Kamida 6 ta belgi"
+          className="mb-4 w-full rounded-xl border p-3 outline-none focus:border-blue-500"
           value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          onChange={handleChange}
+          disabled={submitting}
+          minLength={6}
+          required
         />
 
-        <button className="w-full bg-slate-950 text-white p-3 rounded-xl">
-          Ro‘yxatdan o‘tish
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full rounded-xl bg-slate-950 p-3 text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {submitting
+            ? "Ro‘yxatdan o‘tilmoqda..."
+            : "Ro‘yxatdan o‘tish"}
         </button>
 
-        <p className="text-center mt-5 text-sm">
-          Hisobingiz bormi? <Link className="text-blue-600" to="/login">Kirish</Link>
+        <p className="mt-5 text-center text-sm">
+          Hisobingiz bormi?{" "}
+          <Link
+            className="text-blue-600 hover:underline"
+            to="/login"
+          >
+            Kirish
+          </Link>
         </p>
       </form>
     </div>
