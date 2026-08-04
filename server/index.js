@@ -27,29 +27,64 @@ app.set("trust proxy", 1);
    CORS
 ========================================================= */
 
+const normalizeOrigin = (origin) => {
+  return String(origin || "")
+    .trim()
+    .replace(/\/+$/, "");
+};
+
 const defaultOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
 
 const environmentOrigins = String(
-  process.env.CLIENT_URLS || process.env.CLIENT_URL || ""
+  process.env.CLIENT_URLS ||
+    process.env.CLIENT_URL ||
+    process.env.APP_URL ||
+    ""
 )
   .split(",")
-  .map((origin) => origin.trim())
+  .map(normalizeOrigin)
   .filter(Boolean);
 
 const allowedOrigins = [
-  ...new Set([...defaultOrigins, ...environmentOrigins]),
+  ...new Set([
+    ...defaultOrigins.map(normalizeOrigin),
+    ...environmentOrigins,
+  ]),
 ];
+
+const isAllowedOrigin = (origin) => {
+  // Postman, curl yoki server-to-server so‘rovlarda
+  // Origin bo‘lmasligi mumkin.
+  if (!origin) {
+    return true;
+  }
+
+  const normalizedOrigin = normalizeOrigin(origin);
+
+  // Railway Variables ichida aniq ko‘rsatilgan domenlar
+  if (allowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  // Vercel production va preview domenlariga ruxsat
+  try {
+    const parsedUrl = new URL(normalizedOrigin);
+
+    return (
+      parsedUrl.protocol === "https:" &&
+      parsedUrl.hostname.endsWith(".vercel.app")
+    );
+  } catch {
+    return false;
+  }
+};
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
 
@@ -109,12 +144,21 @@ app.use(
 ========================================================= */
 
 app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader(
+    "X-Content-Type-Options",
+    "nosniff"
+  );
+
+  res.setHeader(
+    "X-Frame-Options",
+    "DENY"
+  );
+
   res.setHeader(
     "Referrer-Policy",
     "strict-origin-when-cross-origin"
   );
+
   res.setHeader(
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=()"
@@ -166,7 +210,8 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/health", (req, res) => {
-  const databaseState = mongoose.connection.readyState;
+  const databaseState =
+    mongoose.connection.readyState;
 
   const databaseStatuses = {
     0: "disconnected",
@@ -177,16 +222,22 @@ app.get("/api/health", (req, res) => {
 
   const healthy = databaseState === 1;
 
-  return res.status(healthy ? 200 : 503).json({
-    success: healthy,
-    service: "YordamAI API",
-    status: healthy ? "healthy" : "unhealthy",
-    database:
-      databaseStatuses[databaseState] || "unknown",
-    environment: NODE_ENV,
-    uptimeSeconds: Math.floor(process.uptime()),
-    timestamp: new Date().toISOString(),
-  });
+  return res
+    .status(healthy ? 200 : 503)
+    .json({
+      success: healthy,
+      service: "YordamAI API",
+      status: healthy
+        ? "healthy"
+        : "unhealthy",
+      database:
+        databaseStatuses[databaseState] ||
+        "unknown",
+      environment: NODE_ENV,
+      uptimeSeconds:
+        Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+    });
 });
 
 /* =========================================================
@@ -198,12 +249,16 @@ app.use("/api/auth", authRoutes);
 app.use("/api/chat", chatRoutes);
 
 /*
-  Eski frontend /api/messages endpointidan foydalanayotgan
-  bo‘lsa ham chat route ishlashi uchun qo‘shimcha manzil.
+  Eski frontend /api/messages endpointidan
+  foydalanayotgan bo‘lsa ham chat route ishlashi
+  uchun qo‘shimcha manzil.
 */
 app.use("/api/messages", chatRoutes);
 
-app.use("/api/conversations", conversationRoutes);
+app.use(
+  "/api/conversations",
+  conversationRoutes
+);
 
 app.use("/api/pdf", pdfRoutes);
 
@@ -217,7 +272,9 @@ app.use((req, res) => {
   return res.status(404).json({
     success: false,
     code: "ROUTE_NOT_FOUND",
-    message: `API manzil topilmadi: ${req.method} ${req.originalUrl}`,
+    message:
+      `API manzil topilmadi: ` +
+      `${req.method} ${req.originalUrl}`,
   });
 });
 
@@ -226,7 +283,10 @@ app.use((req, res) => {
 ========================================================= */
 
 app.use((error, req, res, next) => {
-  console.error("❌ Server xatosi:", error);
+  console.error(
+    "❌ Server xatosi:",
+    error
+  );
 
   if (res.headersSent) {
     return next(error);
@@ -234,7 +294,9 @@ app.use((error, req, res, next) => {
 
   if (
     error.code === "CORS_FORBIDDEN" ||
-    error.message?.startsWith("CORS bloklandi")
+    error.message?.startsWith(
+      "CORS bloklandi"
+    )
   ) {
     return res.status(403).json({
       success: false,
@@ -251,14 +313,19 @@ app.use((error, req, res, next) => {
     return res.status(400).json({
       success: false,
       code: "INVALID_JSON",
-      message: "Yuborilgan JSON formati noto‘g‘ri",
+      message:
+        "Yuborilgan JSON formati noto‘g‘ri",
     });
   }
 
   if (error.name === "ValidationError") {
-    const validationErrors = Object.values(
-      error.errors || {}
-    ).map((validationError) => validationError.message);
+    const validationErrors =
+      Object.values(
+        error.errors || {}
+      ).map(
+        (validationError) =>
+          validationError.message
+      );
 
     return res.status(400).json({
       success: false,
@@ -279,9 +346,12 @@ app.use((error, req, res, next) => {
   }
 
   if (error.code === 11000) {
-    const duplicateField = Object.keys(
-      error.keyPattern || error.keyValue || {}
-    )[0];
+    const duplicateField =
+      Object.keys(
+        error.keyPattern ||
+          error.keyValue ||
+          {}
+      )[0];
 
     return res.status(409).json({
       success: false,
@@ -294,14 +364,23 @@ app.use((error, req, res, next) => {
   }
 
   if (error.name === "MulterError") {
-    let message = "Fayl yuklashda xatolik";
+    let message =
+      "Fayl yuklashda xatolik";
 
-    if (error.code === "LIMIT_FILE_SIZE") {
-      message = "Yuklangan fayl hajmi juda katta";
+    if (
+      error.code ===
+      "LIMIT_FILE_SIZE"
+    ) {
+      message =
+        "Yuklangan fayl hajmi juda katta";
     }
 
-    if (error.code === "LIMIT_UNEXPECTED_FILE") {
-      message = "Noto‘g‘ri fayl maydoni yuborildi";
+    if (
+      error.code ===
+      "LIMIT_UNEXPECTED_FILE"
+    ) {
+      message =
+        "Noto‘g‘ri fayl maydoni yuborildi";
     }
 
     return res.status(400).json({
@@ -312,24 +391,34 @@ app.use((error, req, res, next) => {
   }
 
   const statusCode =
-    Number(error.statusCode || error.status) || 500;
+    Number(
+      error.statusCode ||
+        error.status
+    ) || 500;
 
-  const isProduction = NODE_ENV === "production";
+  const isProduction =
+    NODE_ENV === "production";
 
-  return res.status(statusCode).json({
-    success: false,
-    code: error.code || "SERVER_ERROR",
-    message:
-      statusCode >= 500 && isProduction
-        ? "Serverda ichki xatolik yuz berdi"
-        : error.message ||
-          "Serverda noma’lum xatolik yuz berdi",
-    ...(!isProduction && error.stack
-      ? {
-          stack: error.stack,
-        }
-      : {}),
-  });
+  return res
+    .status(statusCode)
+    .json({
+      success: false,
+      code:
+        error.code ||
+        "SERVER_ERROR",
+      message:
+        statusCode >= 500 &&
+        isProduction
+          ? "Serverda ichki xatolik yuz berdi"
+          : error.message ||
+            "Serverda noma’lum xatolik yuz berdi",
+      ...(!isProduction &&
+      error.stack
+        ? {
+            stack: error.stack,
+          }
+        : {}),
+    });
 });
 
 /* =========================================================
@@ -343,29 +432,50 @@ const connectDatabase = async () => {
     );
   }
 
-  mongoose.set("strictQuery", true);
+  mongoose.set(
+    "strictQuery",
+    true
+  );
 
-  await mongoose.connect(MONGO_URI, {
-    serverSelectionTimeoutMS: 10000,
-  });
+  await mongoose.connect(
+    MONGO_URI,
+    {
+      serverSelectionTimeoutMS: 10000,
+    }
+  );
 
-  console.log("🟢 MongoDB muvaffaqiyatli ulandi");
+  console.log(
+    "🟢 MongoDB muvaffaqiyatli ulandi"
+  );
 };
 
-mongoose.connection.on("error", (error) => {
-  console.error(
-    "🔴 MongoDB ulanish xatosi:",
-    error.message
-  );
-});
+mongoose.connection.on(
+  "error",
+  (error) => {
+    console.error(
+      "🔴 MongoDB ulanish xatosi:",
+      error.message
+    );
+  }
+);
 
-mongoose.connection.on("disconnected", () => {
-  console.warn("🟡 MongoDB bilan aloqa uzildi");
-});
+mongoose.connection.on(
+  "disconnected",
+  () => {
+    console.warn(
+      "🟡 MongoDB bilan aloqa uzildi"
+    );
+  }
+);
 
-mongoose.connection.on("reconnected", () => {
-  console.log("🟢 MongoDB qayta ulandi");
-});
+mongoose.connection.on(
+  "reconnected",
+  () => {
+    console.log(
+      "🟢 MongoDB qayta ulandi"
+    );
+  }
+);
 
 /* =========================================================
    SERVER START
@@ -378,20 +488,39 @@ const startServer = async () => {
   try {
     await connectDatabase();
 
-    server = app.listen(PORT, () => {
-      console.log("");
-      console.log("========================================");
-      console.log("🚀 YordamAI Server ishga tushdi");
-      console.log(`🌍 Manzil: http://localhost:${PORT}`);
-      console.log(`🧩 Muhit: ${NODE_ENV}`);
-      console.log(`🔐 CORS: ${allowedOrigins.join(", ")}`);
-      console.log("========================================");
-      console.log("");
-    });
+    server = app.listen(
+      PORT,
+      () => {
+        console.log("");
+        console.log(
+          "========================================"
+        );
+        console.log(
+          "🚀 YordamAI Server ishga tushdi"
+        );
+        console.log(
+          `🌍 Port: ${PORT}`
+        );
+        console.log(
+          `🧩 Muhit: ${NODE_ENV}`
+        );
+        console.log(
+          `🔐 CORS: ${allowedOrigins.join(", ")}`
+        );
+        console.log(
+          "🔐 Vercel preview: ruxsat berilgan"
+        );
+        console.log(
+          "========================================"
+        );
+        console.log("");
+      }
+    );
   } catch (error) {
     console.error(
       "🔴 Serverni ishga tushirishda xatolik:"
     );
+
     console.error(error);
 
     process.exit(1);
@@ -410,28 +539,35 @@ const shutdown = async (signal) => {
   shutdownStarted = true;
 
   console.log(
-    `\n🟡 ${signal} qabul qilindi. Server yopilmoqda...`
+    `\n🟡 ${signal} qabul qilindi. ` +
+      "Server yopilmoqda..."
   );
 
   try {
     if (server) {
-      await new Promise((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
+      await new Promise(
+        (resolve, reject) => {
+          server.close((error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
 
-          resolve();
-        });
-      });
+            resolve();
+          });
+        }
+      );
     }
 
-    if (mongoose.connection.readyState !== 0) {
+    if (
+      mongoose.connection.readyState !== 0
+    ) {
       await mongoose.connection.close();
     }
 
-    console.log("🟢 Server xavfsiz yopildi");
+    console.log(
+      "🟢 Server xavfsiz yopildi"
+    );
 
     process.exit(0);
   } catch (error) {
@@ -444,28 +580,45 @@ const shutdown = async (signal) => {
   }
 };
 
-process.on("SIGINT", () => {
-  shutdown("SIGINT");
-});
+process.on(
+  "SIGINT",
+  () => {
+    shutdown("SIGINT");
+  }
+);
 
-process.on("SIGTERM", () => {
-  shutdown("SIGTERM");
-});
+process.on(
+  "SIGTERM",
+  () => {
+    shutdown("SIGTERM");
+  }
+);
 
-process.on("unhandledRejection", (reason) => {
-  console.error(
-    "🔴 Unhandled Promise Rejection:",
-    reason
-  );
+process.on(
+  "unhandledRejection",
+  (reason) => {
+    console.error(
+      "🔴 Unhandled Promise Rejection:",
+      reason
+    );
 
-  shutdown("UNHANDLED_REJECTION");
-});
+    shutdown(
+      "UNHANDLED_REJECTION"
+    );
+  }
+);
 
-process.on("uncaughtException", (error) => {
-  console.error("🔴 Uncaught Exception:", error);
+process.on(
+  "uncaughtException",
+  (error) => {
+    console.error(
+      "🔴 Uncaught Exception:",
+      error
+    );
 
-  process.exit(1);
-});
+    process.exit(1);
+  }
+);
 
 startServer();
 
