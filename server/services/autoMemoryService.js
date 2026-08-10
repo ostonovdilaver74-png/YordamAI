@@ -26,6 +26,47 @@ function cleanCapturedValue(value) {
 }
 
 /* =========================================================
+   SAVOL SO‘ZLARINI TEKSHIRISH
+========================================================= */
+
+const QUESTION_VALUES = new Set([
+  "nima",
+  "kim",
+  "qanday",
+  "qayerda",
+  "qayer",
+  "qachon",
+  "necha",
+  "qancha",
+  "qaysi",
+  "what",
+  "who",
+  "where",
+  "when",
+  "how",
+]);
+
+function isQuestionLikeValue(value) {
+  const cleanValue = cleanCapturedValue(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (!cleanValue) {
+    return true;
+  }
+
+  if (QUESTION_VALUES.has(cleanValue)) {
+    return true;
+  }
+
+  if (cleanValue.endsWith("?")) {
+    return true;
+  }
+
+  return false;
+}
+
+/* =========================================================
    XOTIRA QOIDALARI
 ========================================================= */
 
@@ -37,8 +78,7 @@ const MEMORY_RULES = [
 
     patterns: [
       /^(?:mening\s+ismim|ismim)\s+(.+)$/i,
-      /^meni\s+(.+)\s+deb\s+chaqir(?:ing|ishingiz mumkin)?$/i,
-      /^men\s+(.+)\s+man$/i,
+      /^meni\s+(.+?)\s+deb\s+chaqir(?:ing|ishingiz mumkin)?$/i,
     ],
   },
 
@@ -138,6 +178,10 @@ function extractMemoryCandidates(message) {
     return [];
   }
 
+  if (cleanMessage.endsWith("?")) {
+    return [];
+  }
+
   const candidates = [];
 
   for (const rule of MEMORY_RULES) {
@@ -167,6 +211,13 @@ function extractMemoryCandidates(message) {
         cleanCapturedValue(value);
 
       if (!cleanValue) {
+        continue;
+      }
+
+      if (
+        rule.key === "name" &&
+        isQuestionLikeValue(cleanValue)
+      ) {
         continue;
       }
 
