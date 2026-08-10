@@ -135,7 +135,10 @@ async function getUserMemories(
 ========================================================= */
 
 function formatMemoriesForPrompt(memories = []) {
-  if (!Array.isArray(memories) || memories.length === 0) {
+  if (
+    !Array.isArray(memories) ||
+    memories.length === 0
+  ) {
     return "";
   }
 
@@ -143,10 +146,12 @@ function formatMemoriesForPrompt(memories = []) {
     .filter((memory) => memory?.value)
     .map((memory, index) => {
       const category =
-        normalizeText(memory.category) || "other";
+        normalizeText(memory.category) ||
+        "other";
 
       const key =
-        normalizeText(memory.key) || `memory_${index + 1}`;
+        normalizeText(memory.key) ||
+        `memory_${index + 1}`;
 
       const value =
         normalizeText(memory.value).slice(
@@ -175,10 +180,13 @@ function formatMemoriesForPrompt(memories = []) {
    XOTIRANI ISHLATILGAN DEB BELGILASH
 ========================================================= */
 
-async function markMemoriesAsUsed(memoryIds = []) {
-  const validIds = Array.isArray(memoryIds)
-    ? memoryIds.filter(Boolean)
-    : [];
+async function markMemoriesAsUsed(
+  memoryIds = []
+) {
+  const validIds =
+    Array.isArray(memoryIds)
+      ? memoryIds.filter(Boolean)
+      : [];
 
   if (validIds.length === 0) {
     return;
@@ -223,7 +231,9 @@ async function deleteMemory({
    BARCHA XOTIRALARNI TOZALASH
 ========================================================= */
 
-async function clearUserMemories(userId) {
+async function clearUserMemories(
+  userId
+) {
   if (!userId) {
     return {
       deletedCount: 0,
