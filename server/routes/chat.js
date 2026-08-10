@@ -1539,23 +1539,24 @@ router.post(
 
       let finalAiResult = null;
 
-      for await (
-        const streamEvent of
-          streamAIReply(
-            previousMessages,
-            modelKey,
-            documentContext,
-            {
-              signal:
-                abortController.signal,
+     for await (
+  const streamEvent of
+    streamAIReply(
+      addMemoryToMessages(
+        previousMessages,
+        memoryContext
+      ),
+      modelKey,
+      documentContext,
+      {
+        signal:
+          abortController.signal,
 
-              images,
+        images,
 
-              webSearch,
-
-              memoryContext,
-            }
-          )
+        webSearch,
+      }
+    )
       ) {
         if (
           streamEvent.type ===
