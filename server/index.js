@@ -9,6 +9,7 @@ const chatRoutes = require("./routes/chat");
 const conversationRoutes = require("./routes/conversationRoutes");
 const pdfRoutes = require("./routes/pdf");
 const planRoutes = require("./routes/planRoutes");
+const memoryRoutes = require("./routes/memoryRoutes");
 
 const app = express();
 
@@ -263,6 +264,8 @@ app.use(
 app.use("/api/pdf", pdfRoutes);
 
 app.use("/api/plans", planRoutes);
+
+app.use("/api/memory", memoryRoutes);
 
 /* =========================================================
    404 ROUTE

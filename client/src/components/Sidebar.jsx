@@ -38,6 +38,10 @@ export default function Sidebar() {
     setDeletingId,
   ] = useState(null);
 
+  /* =========================================================
+     CHAT QIDIRISH
+  ========================================================= */
+
   const filteredConversations =
     useMemo(() => {
       const cleanSearch = search
@@ -62,6 +66,10 @@ export default function Sidebar() {
       search,
     ]);
 
+  /* =========================================================
+     MENU LINK STYLE
+  ========================================================= */
+
   const linkClass = ({
     isActive,
   }) =>
@@ -71,15 +79,24 @@ export default function Sidebar() {
         : "text-slate-700 hover:bg-slate-100"
     }`;
 
+  /* =========================================================
+     YANGI CHAT
+  ========================================================= */
+
   async function handleNewChat() {
     const conversation =
       await newChat();
 
     if (conversation) {
       setSearch("");
+
       navigate("/chat");
     }
   }
+
+  /* =========================================================
+     CHATNI OCHISH
+  ========================================================= */
 
   async function handleOpenChat(
     conversationId
@@ -90,6 +107,10 @@ export default function Sidebar() {
 
     navigate("/chat");
   }
+
+  /* =========================================================
+     CHATNI O‘CHIRISH
+  ========================================================= */
 
   async function handleDelete(
     event,
@@ -126,8 +147,15 @@ export default function Sidebar() {
     }
   }
 
+  /* =========================================================
+     SIDEBAR
+  ========================================================= */
+
   return (
     <aside className="flex h-screen w-80 flex-col border-r border-slate-200 bg-white p-4">
+
+      {/* LOGO */}
+
       <div className="mb-5">
         <h1 className="text-2xl font-bold text-slate-900">
           🤖 YordamAI
@@ -137,6 +165,8 @@ export default function Sidebar() {
           O‘zbek AI yordamchi
         </p>
       </div>
+
+      {/* CHAT QIDIRISH */}
 
       <div className="relative">
         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -169,6 +199,8 @@ export default function Sidebar() {
         )}
       </div>
 
+      {/* YANGI CHAT */}
+
       <button
         type="button"
         onClick={
@@ -184,7 +216,10 @@ export default function Sidebar() {
           : "➕ Yangi chat"}
       </button>
 
+      {/* ASOSIY MENU */}
+
       <nav className="mt-5 flex flex-col gap-2">
+
         <NavLink
           to="/"
           className={
@@ -229,10 +264,24 @@ export default function Sidebar() {
         >
           🌍 Tarjimon
         </NavLink>
+
+        {/* MEMORY */}
+
+        <NavLink
+          to="/memory"
+          className={linkClass}
+    >
+          🧠 Memory
+        </NavLink>
+
       </nav>
 
+      {/* CHAT TARIXI */}
+
       <div className="mt-6 flex-1 overflow-y-auto">
+
         <div className="mb-2 flex items-center justify-between">
+
           <p className="text-xs font-semibold text-slate-400">
             CHAT TARIXI
           </p>
@@ -242,9 +291,11 @@ export default function Sidebar() {
               filteredConversations.length
             }
           </span>
+
         </div>
 
         <div className="flex flex-col gap-2">
+
           {conversations.length ===
             0 && (
             <p className="px-4 py-3 text-sm text-slate-400">
@@ -284,6 +335,7 @@ export default function Sidebar() {
                       : "text-slate-600 hover:bg-slate-100"
                   }`}
                 >
+
                   <button
                     type="button"
                     onClick={() =>
@@ -326,15 +378,21 @@ export default function Sidebar() {
                       ? "..."
                       : "🗑️"}
                   </button>
+
                 </div>
               );
             }
           )}
+
         </div>
       </div>
 
+      {/* USER */}
+
       <div className="border-t pt-4">
+
         <div className="rounded-2xl bg-slate-100 p-4">
+
           <p className="font-semibold text-slate-900">
             👤{" "}
             {user?.name ||
@@ -374,8 +432,10 @@ export default function Sidebar() {
           >
             Chiqish
           </button>
+
         </div>
       </div>
+
     </aside>
   );
 }

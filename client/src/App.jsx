@@ -10,6 +10,7 @@ import Chat from "./pages/Chat";
 import Pricing from "./pages/Pricing";
 import CV from "./pages/CV";
 import Translate from "./pages/Translate";
+import MemorySettings from "./pages/MemorySettings";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import MainLayout from "./layouts/MainLayout";
@@ -17,7 +18,6 @@ import MainLayout from "./layouts/MainLayout";
 function App() {
   return (
     <Routes>
-
       <Route
         path="/login"
         element={<Login />}
@@ -35,7 +35,6 @@ function App() {
           </ProtectedRoute>
         }
       >
-
         <Route
           path="/"
           element={
@@ -66,6 +65,10 @@ function App() {
           element={<Translate />}
         />
 
+        <Route
+          path="/memory"
+          element={<MemorySettings />}
+        />
       </Route>
 
       <Route
@@ -77,7 +80,6 @@ function App() {
           />
         }
       />
-
     </Routes>
   );
 }

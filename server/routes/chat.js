@@ -15,7 +15,7 @@ const {
 } = require("../services/openaiService");
 
 const {
-  getUserMemories,
+  getRelevantMemories,
   formatMemoriesForPrompt,
   markMemoriesAsUsed,
 } = require("../services/memoryService");
@@ -840,13 +840,15 @@ async function getConversationMessages(
 ========================================================= */
 
 async function getMemoryContext(
-  userId
+  userId,
+  currentMessage = ""
 ) {
   const memories =
-    await getUserMemories(
+    await getRelevantMemories({
       userId,
-      20
-    );
+      query: currentMessage,
+      limit: 8,
+    });
 
   return {
     memories,
@@ -1119,7 +1121,8 @@ const {
   memoryContext,
 } =
   await getMemoryContext(
-    user._id
+    user._id,
+    message
   );
 
 const aiMessages =
@@ -1459,7 +1462,8 @@ router.post(
 
       const memoryResult =
         await getMemoryContext(
-          user._id
+          user._id,
+          message
         );
 
       memories =
