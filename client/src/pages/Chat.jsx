@@ -1011,7 +1011,16 @@ export default function Chat() {
                               streamSources,
 
                             webSearchUsed:
-                              webSearchEnabled,
+                              Boolean(
+                                streamState
+                                  ?.model
+                                  ?.webSearchUsed ??
+                                  streamState
+                                    ?.start
+                                    ?.ai
+                                    ?.webSearchUsed ??
+                                  webSearchEnabled
+                              ),
 
                             isTemporary:
                               true,
@@ -1084,6 +1093,8 @@ export default function Chat() {
                 result?.webSearchUsed ??
                   result?.ai
                     ?.webSearchUsed ??
+                  result?.webSearch
+                    ?.enabled ??
                   webSearchEnabled
               ),
 

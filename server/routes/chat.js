@@ -24,6 +24,10 @@ const {
   extractAndSaveMemories,
 } = require("../services/autoMemoryService");
 
+const {
+  resolveWebSearch,
+} = require("../services/webSearchDecisionService");
+
 const router = express.Router();
 
 const FREE_DAILY_LIMIT =
@@ -1052,6 +1056,16 @@ router.post(
           req.body
         );
 
+      const webSearchDecision =
+        resolveWebSearch({
+          message,
+          requestedWebSearch:
+            webSearch,
+        });
+
+      const resolvedWebSearch =
+        webSearchDecision.enabled;
+
       const user =
         await getActiveUser(
           req.user._id
@@ -1138,7 +1152,8 @@ const aiResult =
     documentContext,
     {
       images,
-      webSearch,
+      webSearch:
+        resolvedWebSearch,
     }
   );
       const assistantMessage =
@@ -1248,8 +1263,33 @@ const aiResult =
           webSearch: {
             enabled:
               Boolean(
+                resolvedWebSearch
+              ),
+
+            requested:
+              Boolean(
                 webSearch
               ),
+
+            autoEnabled:
+              Boolean(
+                webSearchDecision.autoEnabled
+              ),
+
+            reason:
+              webSearchDecision.reason ||
+              null,
+
+            confidence:
+              Number.isFinite(
+                Number(
+                  webSearchDecision.confidence
+                )
+              )
+                ? Number(
+                    webSearchDecision.confidence
+                  )
+                : null,
 
             used:
               Boolean(
@@ -1380,20 +1420,15 @@ router.post(
           req.body
         );
 
-      console.log(
-        "CHAT STREAM REQUEST:",
-        {
+      const webSearchDecision =
+        resolveWebSearch({
           message,
-          modelKey,
-          webSearch,
-          imageCount:
-            images.length,
-          hasDocument:
-            Boolean(
-              documentContext
-            ),
-        }
-      );
+          requestedWebSearch:
+            webSearch,
+        });
+
+      const resolvedWebSearch =
+        webSearchDecision.enabled;
 
       user =
         await getActiveUser(
@@ -1490,7 +1525,7 @@ router.post(
             modelKey,
             webSearchUsed:
               Boolean(
-                webSearch
+                resolvedWebSearch
               ),
           },
 
@@ -1515,8 +1550,33 @@ router.post(
           webSearch: {
             enabled:
               Boolean(
+                resolvedWebSearch
+              ),
+
+            requested:
+              Boolean(
                 webSearch
               ),
+
+            autoEnabled:
+              Boolean(
+                webSearchDecision.autoEnabled
+              ),
+
+            reason:
+              webSearchDecision.reason ||
+              null,
+
+            confidence:
+              Number.isFinite(
+                Number(
+                  webSearchDecision.confidence
+                )
+              )
+                ? Number(
+                    webSearchDecision.confidence
+                  )
+                : null,
 
             used: false,
 
@@ -1558,7 +1618,8 @@ router.post(
 
         images,
 
-        webSearch,
+        webSearch:
+          resolvedWebSearch,
       }
     )
       ) {
@@ -1762,8 +1823,33 @@ router.post(
           webSearch: {
             enabled:
               Boolean(
+                resolvedWebSearch
+              ),
+
+            requested:
+              Boolean(
                 webSearch
               ),
+
+            autoEnabled:
+              Boolean(
+                webSearchDecision.autoEnabled
+              ),
+
+            reason:
+              webSearchDecision.reason ||
+              null,
+
+            confidence:
+              Number.isFinite(
+                Number(
+                  webSearchDecision.confidence
+                )
+              )
+                ? Number(
+                    webSearchDecision.confidence
+                  )
+                : null,
 
             used:
               Boolean(

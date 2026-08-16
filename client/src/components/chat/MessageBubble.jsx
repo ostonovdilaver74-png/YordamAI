@@ -9,6 +9,9 @@ import remarkGfm from "remark-gfm";
 
 import "../../styles/MessageBubble.scss";
 
+const MAX_VISIBLE_SOURCES = 5;
+const MAX_SOURCE_DESCRIPTION_LENGTH = 300;
+
 /* =========================================================
    VAQTNI FORMATLASH
 ========================================================= */
@@ -85,6 +88,57 @@ function getSourceDomain(url) {
 }
 
 /* =========================================================
+   SOURCE MATNINI QISQARTIRISH
+========================================================= */
+
+function truncateText(
+  value,
+  maxLength =
+    MAX_SOURCE_DESCRIPTION_LENGTH
+) {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  const cleanText =
+    value
+      .replace(/\s+/g, " ")
+      .trim();
+
+  if (!cleanText) {
+    return "";
+  }
+
+  if (
+    cleanText.length <=
+    maxLength
+  ) {
+    return cleanText;
+  }
+
+  const sliced =
+    cleanText.slice(
+      0,
+      maxLength
+    );
+
+  const lastSpace =
+    sliced.lastIndexOf(" ");
+
+  const safeText =
+    lastSpace > 180
+      ? sliced.slice(
+          0,
+          lastSpace
+        )
+      : sliced;
+
+  return `${safeText.trim()}…`;
+}
+
+/* =========================================================
    MANBALARNI NORMALIZATSIYA QILISH
 ========================================================= */
 
@@ -127,10 +181,9 @@ function normalizeSources(
         : getSourceDomain(url);
 
     const content =
-      typeof source.content ===
-        "string"
-        ? source.content.trim()
-        : "";
+      truncateText(
+        source.content
+      );
 
     if (
       !uniqueSources.has(url)
@@ -145,6 +198,13 @@ function normalizeSources(
             getSourceDomain(url),
         }
       );
+    }
+
+    if (
+      uniqueSources.size >=
+      MAX_VISIBLE_SOURCES
+    ) {
+      break;
     }
   }
 
@@ -377,8 +437,18 @@ function MessageBubble({
     [message.sources]
   );
 
+  const normalizedSources =
+    useMemo(
+      () =>
+        normalizeSources(
+          sources
+        ),
+      [sources]
+    );
+
   const hasSources =
-    sources.length > 0;
+    normalizedSources.length >
+    0;
 
   const webSearchUsed =
     Boolean(
@@ -531,7 +601,9 @@ function MessageBubble({
         {!isUser &&
           hasSources && (
             <MessageSources
-              sources={sources}
+              sources={
+                normalizedSources
+              }
               isStreaming={
                 Boolean(
                   message.isStreaming
