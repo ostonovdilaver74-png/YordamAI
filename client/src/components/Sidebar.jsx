@@ -328,8 +328,8 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }) {
 
       <aside
         className={[
-          "yordamai-premium-sidebar fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[86vw] max-w-80 flex-col border-r border-[#252b3a] bg-[#0b0f19] p-4 text-slate-200 shadow-2xl transition-transform duration-300 ease-out",
-          "lg:static lg:z-auto lg:h-screen lg:w-80 lg:max-w-none lg:translate-x-0 lg:shadow-none",
+          "yordamai-premium-sidebar fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[86vw] max-w-80 flex-col overflow-y-auto overscroll-contain border-r border-[#252b3a] bg-[#0b0f19] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] text-slate-200 shadow-2xl transition-transform duration-300 ease-out",
+          "lg:static lg:z-auto lg:h-screen lg:w-80 lg:max-w-none lg:translate-x-0 lg:overflow-hidden lg:shadow-none",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
@@ -492,7 +492,7 @@ export default function Sidebar({ mobileOpen = false, onMobileClose }) {
 
       {/* CHAT TARIXI */}
 
-      <div className="mt-6 flex-1 overflow-y-auto">
+      <div className="mt-6 min-h-0 flex-1 overflow-y-auto overscroll-contain">
 
         <div className="mb-2 flex items-center justify-between">
 
