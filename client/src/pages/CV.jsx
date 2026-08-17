@@ -455,116 +455,248 @@ ${sourceInformation}
       setAiError("");
       setAiSuccess("");
 
-      const canvas =
-        await html2canvas(
-          cvPreviewRef.current,
-          {
-            scale: 2,
-            useCORS: true,
-            backgroundColor:
-              "#ffffff",
-            logging: false,
-            windowWidth:
-              cvPreviewRef.current
-                .scrollWidth,
-            windowHeight:
-              cvPreviewRef.current
-                .scrollHeight,
-          }
+      const previewElement =
+        cvPreviewRef.current;
+
+      /*
+       * Muhim:
+       * Ekrandagi preview responsive bo‘lgani uchun uning eni
+       * kichik bo‘lishi mumkin. Eski kod aynan shu kichik preview'ni
+       * rasmga olib, A4 eniga kattalashtirardi. Natijada balandlik ham
+       * bir necha barobar kattalashib, CV 8 sahifaga bo‘linardi.
+       *
+       * PDF uchun element klonlanadi va A4'ga mos qat'iy 794px enida
+       * vaqtincha render qilinadi. Ekrandagi preview o‘zgarmaydi.
+       */
+      const exportWidthPx = 794;
+
+      const exportHost =
+        document.createElement(
+          "div"
         );
 
-      const imageData =
-        canvas.toDataURL(
-          "image/jpeg",
-          0.95
+      exportHost.style.position =
+        "fixed";
+      exportHost.style.left =
+        "-100000px";
+      exportHost.style.top = "0";
+      exportHost.style.width =
+        `${exportWidthPx}px`;
+      exportHost.style.background =
+        "#ffffff";
+      exportHost.style.zIndex =
+        "-1";
+      exportHost.style.pointerEvents =
+        "none";
+
+      const exportElement =
+        previewElement.cloneNode(
+          true
         );
 
-      const pdf = new jsPDF({
-        orientation:
-          "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const pageWidth =
-        pdf.internal.pageSize
-          .getWidth();
-
-      const pageHeight =
-        pdf.internal.pageSize
-          .getHeight();
-
-      const margin = 6;
-
-      const printableWidth =
-        pageWidth -
-        margin * 2;
-
-      const printableHeight =
-        pageHeight -
-        margin * 2;
-
-      const imageHeight =
-        (canvas.height *
-          printableWidth) /
-        canvas.width;
-
-      let remainingHeight =
-        imageHeight;
-
-      let positionY = margin;
-
-      pdf.addImage(
-        imageData,
-        "JPEG",
-        margin,
-        positionY,
-        printableWidth,
-        imageHeight,
-        undefined,
-        "FAST"
+      exportElement.removeAttribute(
+        "id"
       );
 
-      remainingHeight -=
-        printableHeight;
+      exportElement.style.width =
+        `${exportWidthPx}px`;
+      exportElement.style.maxWidth =
+        "none";
+      exportElement.style.minWidth =
+        `${exportWidthPx}px`;
+      exportElement.style.height =
+        "auto";
+      exportElement.style.minHeight =
+        "0";
+      exportElement.style.margin =
+        "0";
+      exportElement.style.border =
+        "0";
+      exportElement.style.borderRadius =
+        "0";
+      exportElement.style.boxShadow =
+        "none";
+      exportElement.style.overflow =
+        "visible";
+      exportElement.style.background =
+        "#ffffff";
 
-      while (
-        remainingHeight > 0
-      ) {
-        positionY =
-          margin -
-          (imageHeight -
-            remainingHeight);
+      exportHost.appendChild(
+        exportElement
+      );
 
-        pdf.addPage();
+      document.body.appendChild(
+        exportHost
+      );
+
+      try {
+        if (
+          document.fonts?.ready
+        ) {
+          await document.fonts.ready;
+        }
+
+        await new Promise(
+          (resolve) =>
+            requestAnimationFrame(
+              () =>
+                requestAnimationFrame(
+                  resolve
+                )
+            )
+        );
+
+        const canvas =
+          await html2canvas(
+            exportElement,
+            {
+              scale: 2,
+              useCORS: true,
+              backgroundColor:
+                "#ffffff",
+              logging: false,
+              width:
+                exportElement
+                  .scrollWidth,
+              height:
+                exportElement
+                  .scrollHeight,
+              windowWidth:
+                exportWidthPx,
+              windowHeight:
+                Math.max(
+                  exportElement
+                    .scrollHeight,
+                  1123
+                ),
+            }
+          );
+
+        const imageData =
+          canvas.toDataURL(
+            "image/jpeg",
+            0.95
+          );
+
+        const pdf = new jsPDF({
+          orientation:
+            "portrait",
+          unit: "mm",
+          format: "a4",
+        });
+
+        const pageWidth =
+          pdf.internal.pageSize
+            .getWidth();
+
+        const pageHeight =
+          pdf.internal.pageSize
+            .getHeight();
+
+        const margin = 6;
+
+        const printableWidth =
+          pageWidth -
+          margin * 2;
+
+        const printableHeight =
+          pageHeight -
+          margin * 2;
+
+        const naturalImageHeight =
+          (canvas.height *
+            printableWidth) /
+          canvas.width;
+
+        /*
+         * Odatdagi CV bir A4 sahifaga sig‘ishi uchun faqat kerak
+         * bo‘lgandagina kichraytiriladi. Juda uzun CV esa o‘qilmaydigan
+         * darajada siqilmaydi: kamida 72% masshtab saqlanadi va
+         * zarur bo‘lsa 2+ sahifaga bo‘linadi.
+         */
+        const fitScale =
+          naturalImageHeight >
+          printableHeight
+            ? Math.max(
+                0.72,
+                printableHeight /
+                  naturalImageHeight
+              )
+            : 1;
+
+        const renderWidth =
+          printableWidth *
+          fitScale;
+
+        const renderHeight =
+          naturalImageHeight *
+          fitScale;
+
+        const positionX =
+          (pageWidth -
+            renderWidth) /
+          2;
+
+        let remainingHeight =
+          renderHeight;
+
+        let positionY =
+          margin;
 
         pdf.addImage(
           imageData,
           "JPEG",
-          margin,
+          positionX,
           positionY,
-          printableWidth,
-          imageHeight,
+          renderWidth,
+          renderHeight,
           undefined,
           "FAST"
         );
 
         remainingHeight -=
           printableHeight;
-      }
 
-      const safeName =
-        createSafeFileName(
-          form.fullName
+        while (
+          remainingHeight > 0.5
+        ) {
+          positionY =
+            margin -
+            (renderHeight -
+              remainingHeight);
+
+          pdf.addPage();
+
+          pdf.addImage(
+            imageData,
+            "JPEG",
+            positionX,
+            positionY,
+            renderWidth,
+            renderHeight,
+            undefined,
+            "FAST"
+          );
+
+          remainingHeight -=
+            printableHeight;
+        }
+
+        const safeName =
+          createSafeFileName(
+            form.fullName
+          );
+
+        pdf.save(
+          `${safeName}-CV.pdf`
         );
 
-      pdf.save(
-        `${safeName}-CV.pdf`
-      );
-
-      setAiSuccess(
-        "CV PDF formatida yuklab olindi."
-      );
+        setAiSuccess(
+          "CV PDF formatida yuklab olindi."
+        );
+      } finally {
+        exportHost.remove();
+      }
     } catch (error) {
       console.error(
         "CV PDF XATOSI:",
@@ -584,28 +716,28 @@ ${sourceInformation}
     exportingPdf;
 
   return (
-    <section className="mx-auto w-full max-w-7xl">
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <section className="mx-auto w-full max-w-7xl overflow-x-hidden px-3 pb-8 pt-4 sm:px-4 sm:pt-5 lg:px-0 lg:pt-0">
+      <div className="mb-5 flex min-w-0 flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+          <h1 className="break-words text-2xl font-extrabold tracking-tight text-slate-100 sm:text-4xl lg:text-slate-900">
             📄 AI CV Generator
           </h1>
 
-          <p className="mt-2 text-slate-500">
+          <p className="mt-2 text-sm leading-6 text-slate-400 sm:text-base lg:text-slate-500">
             Professional va
             tartibli rezyume
             yarating.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:gap-3">
           <button
             type="button"
             onClick={
               generateWithAI
             }
             disabled={isBusy}
-            className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-w-0 rounded-xl bg-blue-600 px-3 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             {loadingAI
               ? "🤖 AI yozmoqda..."
@@ -618,7 +750,7 @@ ${sourceInformation}
               downloadPdf
             }
             disabled={isBusy}
-            className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-w-0 rounded-xl bg-emerald-600 px-3 py-3 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             {exportingPdf
               ? "📄 PDF tayyorlanmoqda..."
@@ -629,7 +761,7 @@ ${sourceInformation}
             type="button"
             onClick={clearForm}
             disabled={isBusy}
-            className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="col-span-2 rounded-xl border border-slate-300 bg-white px-3 py-3 text-xs font-bold text-slate-700 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-1 sm:px-5 sm:py-2.5 sm:text-sm"
           >
             🗑 Tozalash
           </button>
@@ -637,20 +769,20 @@ ${sourceInformation}
       </div>
 
       {aiError && (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+        <div className="mb-5 break-words rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-700 sm:mb-6 sm:px-5 sm:py-4">
           {aiError}
         </div>
       )}
 
       {aiSuccess && (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-700">
+        <div className="mb-5 break-words rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium leading-6 text-emerald-700 sm:mb-6 sm:px-5 sm:py-4">
           ✅ {aiSuccess}
         </div>
       )}
 
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)]">
-        <div className="space-y-6">
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.9fr)] xl:gap-8">
+        <div className="min-w-0 space-y-5 sm:space-y-6">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
             <h2 className="text-xl font-bold text-slate-900">
               Asosiy ma’lumotlar
             </h2>
@@ -676,7 +808,7 @@ ${sourceInformation}
                     handleChange
                   }
                   placeholder="Masalan: Dilmurod Karimov"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
@@ -694,7 +826,7 @@ ${sourceInformation}
                     handleChange
                   }
                   placeholder="Masalan: Frontend Developer"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
@@ -713,7 +845,7 @@ ${sourceInformation}
                     handleChange
                   }
                   placeholder="email@example.com"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
@@ -731,7 +863,7 @@ ${sourceInformation}
                     handleChange
                   }
                   placeholder="+998 90 123 45 67"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
@@ -749,13 +881,13 @@ ${sourceInformation}
                     handleChange
                   }
                   placeholder="Masalan: Toshkent, O‘zbekiston"
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
             </div>
           </article>
 
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
             <h2 className="text-xl font-bold text-slate-900">
               Professional profil
             </h2>
@@ -778,11 +910,11 @@ ${sourceInformation}
               }
               rows={6}
               placeholder="Masalan: Men 2 yillik tajribaga ega Frontend dasturchiman. React, JavaScript, Tailwind CSS va REST API bilan ishlayman..."
-              className="mt-5 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="mt-5 min-w-0 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </article>
 
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
             <h2 className="text-xl font-bold text-slate-900">
               Tajriba va ta’lim
             </h2>
@@ -809,7 +941,7 @@ ${sourceInformation}
                   }
                   rows={9}
                   placeholder={`Frontend Developer — ABC Company, 2024–2026\nReact va REST API bilan ishladim\nSayt tezligini yaxshiladim`}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
@@ -828,13 +960,13 @@ ${sourceInformation}
                   }
                   rows={9}
                   placeholder={`TATU — Dasturiy injiniring, 2022–2026\nFrontend Development kursi, 2025`}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
             </div>
           </article>
 
-          <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
             <h2 className="text-xl font-bold text-slate-900">
               Ko‘nikmalar va tillar
             </h2>
@@ -861,7 +993,7 @@ ${sourceInformation}
                   }
                   rows={8}
                   placeholder={`React\nJavaScript\nTailwind CSS\nGit\nREST API`}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
 
@@ -880,20 +1012,20 @@ ${sourceInformation}
                   }
                   rows={8}
                   placeholder={`O‘zbek tili — Ona tili\nRus tili — O‘rta\nIngliz tili — B1`}
-                  className="w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="min-w-0 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
               </label>
             </div>
           </article>
         </div>
 
-        <div className="xl:sticky xl:top-0 xl:self-start">
+        <div className="min-w-0 xl:sticky xl:top-0 xl:self-start">
           <article
             ref={cvPreviewRef}
-            className="min-h-[700px] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+            className="min-h-[560px] w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm sm:min-h-[700px] sm:rounded-3xl"
           >
-            <div className="bg-slate-900 px-7 py-8 text-white">
-              <h2 className="break-words text-3xl font-extrabold">
+            <div className="bg-slate-900 px-5 py-6 text-white sm:px-7 sm:py-8">
+              <h2 className="break-words text-2xl font-extrabold sm:text-3xl">
                 {form.fullName ||
                   "Ism Familiya"}
               </h2>
@@ -924,7 +1056,7 @@ ${sourceInformation}
               </div>
             </div>
 
-            <div className="space-y-7 p-7">
+            <div className="space-y-6 p-5 sm:space-y-7 sm:p-7">
               <section>
                 <h3 className="border-b border-slate-200 pb-2 text-sm font-extrabold uppercase tracking-wider text-slate-900">
                   Professional profil
