@@ -1,0 +1,71 @@
+:root {
+  color-scheme: dark;
+  --yordamai-bg: #070b12;
+  --yordamai-panel: #0b0f19;
+  --yordamai-card: #111722;
+  --yordamai-border: #252b3a;
+  --yordamai-purple: #7c3aed;
+  --yordamai-purple-soft: #a78bfa;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(circle at 60% -10%, rgba(124, 58, 237, 0.12), transparent 32%),
+    #070b12;
+  color: #e5e7eb;
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.42);
+  color: #ffffff;
+}
+
+.yordamai-premium-chat,
+.yordamai-premium-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: #30384a transparent;
+}
+
+.yordamai-premium-chat ::-webkit-scrollbar,
+.yordamai-premium-sidebar ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.yordamai-premium-chat ::-webkit-scrollbar-track,
+.yordamai-premium-sidebar ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.yordamai-premium-chat ::-webkit-scrollbar-thumb,
+.yordamai-premium-sidebar ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #30384a;
+}
+
+.yordamai-premium-chat select option {
+  background: #151b28;
+  color: #e5e7eb;
+}
+
+.yordamai-premium-sidebar h1::first-letter {
+  filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.7));
+}
+
+@media (max-width: 1024px) {
+  .yordamai-premium-sidebar {
+    width: 280px;
+  }
+}
+
+@media (max-width: 768px) {
+  .yordamai-premium-chat {
+    border-radius: 20px;
+  }
+}
