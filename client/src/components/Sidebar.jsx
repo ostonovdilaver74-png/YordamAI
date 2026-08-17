@@ -164,7 +164,7 @@ function BotMarkIcon(props) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onMobileClose }) {
   const navigate = useNavigate();
 
   const {
@@ -232,6 +232,12 @@ export default function Sidebar() {
         : "border-transparent text-slate-300 hover:border-[#30384a] hover:bg-[#151b28] hover:text-white"
     }`;
 
+  function closeMobileSidebar() {
+    if (typeof onMobileClose === "function") {
+      onMobileClose();
+    }
+  }
+
   /* =========================================================
      YANGI CHAT
   ========================================================= */
@@ -244,6 +250,7 @@ export default function Sidebar() {
       setSearch("");
 
       navigate("/chat");
+      closeMobileSidebar();
     }
   }
 
@@ -259,6 +266,7 @@ export default function Sidebar() {
     );
 
     navigate("/chat");
+    closeMobileSidebar();
   }
 
   /* =========================================================
@@ -305,7 +313,26 @@ export default function Sidebar() {
   ========================================================= */
 
   return (
-    <aside className="yordamai-premium-sidebar flex h-screen w-80 flex-col border-r border-[#252b3a] bg-[#0b0f19] p-4 text-slate-200">
+    <>
+      <button
+        type="button"
+        aria-label="Mobil menyuni yopish"
+        onClick={closeMobileSidebar}
+        className={[
+          "fixed inset-0 z-40 bg-black/60 backdrop-blur-[1px] transition-opacity lg:hidden",
+          mobileOpen
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0",
+        ].join(" ")}
+      />
+
+      <aside
+        className={[
+          "yordamai-premium-sidebar fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[86vw] max-w-80 flex-col border-r border-[#252b3a] bg-[#0b0f19] p-4 text-slate-200 shadow-2xl transition-transform duration-300 ease-out",
+          "lg:static lg:z-auto lg:h-screen lg:w-80 lg:max-w-none lg:translate-x-0 lg:shadow-none",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
+      >
 
       {/* LOGO */}
 
@@ -323,6 +350,15 @@ export default function Sidebar() {
             O‘zbek AI yordamchi
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={closeMobileSidebar}
+          className="ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#30384a] bg-[#111722] text-slate-300 transition hover:bg-[#151b28] hover:text-white lg:hidden"
+          aria-label="Menyuni yopish"
+        >
+          ✕
+        </button>
       </div>
 
       {/* CHAT QIDIRISH */}
@@ -386,6 +422,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/"
+          onClick={closeMobileSidebar}
           className={
             linkClass
           }
@@ -395,6 +432,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/chat"
+          onClick={closeMobileSidebar}
           className={
             linkClass
           }
@@ -404,6 +442,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/pricing"
+          onClick={closeMobileSidebar}
           className={
             linkClass
           }
@@ -413,6 +452,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/cv"
+          onClick={closeMobileSidebar}
           className={
             linkClass
           }
@@ -422,6 +462,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/translate"
+          onClick={closeMobileSidebar}
           className={
             linkClass
           }
@@ -433,6 +474,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/memory"
+          onClick={closeMobileSidebar}
           className={linkClass}
     >
           <span className="inline-flex items-center gap-3"><BrainIcon size={18} />Memory</span>
@@ -440,6 +482,7 @@ export default function Sidebar() {
 
         <NavLink
           to="/knowledge"
+          onClick={closeMobileSidebar}
           className={linkClass}
         >
           <span className="inline-flex items-center gap-3"><DatabaseIcon size={18} />Knowledge Base</span>
@@ -613,6 +656,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-    </aside>
+      </aside>
+    </>
   );
 }
