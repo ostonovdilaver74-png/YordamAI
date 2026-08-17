@@ -1,17 +1,63 @@
+import {
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  Outlet,
+  useLocation,
+} from "react-router-dom";
+
 import Sidebar from "../components/Sidebar";
 import Header from "../components/Header";
-import { Outlet } from "react-router-dom";
 
 export default function MainLayout() {
+  const [
+    mobileMenuOpen,
+    setMobileMenuOpen,
+  ] = useState(false);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) {
+      return undefined;
+    }
+
+    const previousOverflow =
+      document.body.style.overflow;
+
+    document.body.style.overflow =
+      "hidden";
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow;
+    };
+  }, [mobileMenuOpen]);
+
   return (
-    <div className="h-screen bg-[#070b12] text-slate-200 flex overflow-hidden">
-      <Sidebar />
+    <div className="flex h-[100dvh] min-h-0 w-full overflow-hidden bg-[#070b12]">
+      <Sidebar
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() =>
+          setMobileMenuOpen(false)
+        }
+      />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header
+          onMenuClick={() =>
+            setMobileMenuOpen(true)
+          }
+        />
 
-        <main className="flex-1 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.07),_transparent_34%)] p-6">
-          <div className="max-w-6xl mx-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-0 sm:p-3 lg:p-6">
+          <div className="mx-auto min-h-full w-full max-w-6xl">
             <Outlet />
           </div>
         </main>
